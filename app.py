@@ -379,12 +379,16 @@ def render_lab_crew() -> None:
         ("scope", "Scope", "Data view"),
         ("trainer", "Trainer", "ML exports"),
     ]
-    cols = st.columns(len(crew))
-    for col, (key, name, role) in zip(cols, crew):
-        with col:
-            st.image(str(MASCOTS[key]), width=76)
-            st.markdown(f"**{name}**")
-            st.caption(role)
+    cards = []
+    for key, name, role in crew:
+        cards.append(
+            '<div class="crew-card">'
+            f'{mascot_img(key, name)}'
+            f'<strong>{html.escape(name)}</strong>'
+            f'<span>{html.escape(role)}</span>'
+            '</div>'
+        )
+    st.html(f'<div class="crew-grid">{"".join(cards)}</div>')
 
 
 def render_agent_banner(mascot: str, badge: str, title: str, body: str) -> None:
