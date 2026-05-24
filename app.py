@@ -296,7 +296,7 @@ def inject_css() -> None:
         }
         .protocol-card strong { color: #ffffff; font-size: 13px; }
         .protocol-card p { margin: 4px 0 0; color: #d9eee9; font-size: 12px; line-height: 1.35; }
-        .command-panel {
+        .assistant-panel {
             background: rgba(255,255,255,0.90);
             border: 1px solid var(--lab-line);
             border-radius: 8px;
@@ -304,8 +304,15 @@ def inject_css() -> None:
             margin: 12px 0 16px;
             box-shadow: 0 12px 30px rgba(15, 61, 67, 0.06);
         }
-        .command-panel h4 { margin: 0 0 4px; color: var(--lab-ink); }
-        .command-panel p { margin: 0 0 10px; color: var(--lab-muted); font-size: 13px; }
+        .assistant-panel h4 { margin: 0 0 4px; color: var(--lab-ink); }
+        .assistant-panel p { margin: 0 0 10px; color: var(--lab-muted); font-size: 13px; }
+        .console-label {
+            color: var(--lab-teal-dark);
+            font-weight: 900;
+            font-size: 12px;
+            text-transform: uppercase;
+            margin: 10px 0 6px;
+        }
         .command-chip {
             display: inline-block;
             margin: 3px 4px 3px 0;
@@ -1147,39 +1154,60 @@ def append_assistant_exchange(question: str, answer: str, download: dict[str, ob
     st.session_state["assistant_messages"].append(assistant_message)
 
 
-def render_command_console() -> None:
+def answer_assistant_input(question: str, context: dict[str, object]) -> tuple[str, dict[str, object] | None]:
+    if question.strip().startswith("/"):
+        return run_assistant_slash_command(question)
+    return answer_dataset_question(question, context), None
+
+
+def submit_assistant_question(question: str, context: dict[str, object]) -> None:
+    cleaned = question.strip()
+    if not cleaned:
+        return
+    answer, download = answer_assistant_input(cleaned, context)
+    append_assistant_exchange(cleaned, answer, download)
+
+
+def render_lab_console_controls(context: dict[str, object], quick_questions: list[str]) -> None:
     command_items = approved_command_catalog()
     command_names = [f"/{item['command']}" for item in command_items]
-    command_help = {f"/{item['command']}": str(item["description"]) for item in command_items}
     chips = "".join(f'<span class="command-chip">{html.escape(name)}</span>' for name in ["/help"] + command_names)
     st.markdown(
         f"""
-        <div class="command-panel">
-            <h4>Lab command console</h4>
-            <p>Type <strong>/</strong> to open approved commands. Commands are safe, allowlisted actions; normal chat stays read-only.</p>
+        <div class="assistant-panel">
+            <h4>Ask Dr. Bio</h4>
+            <p>Use one simple console for questions and approved commands. Click a suggestion, or type your own question below.</p>
             <div>{chips}</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
-    command_text = st.text_input("Command input", placeholder="Type / to choose a command", key="command_console_input", label_visibility="collapsed")
-    selected_command = ""
-    if command_text.strip().startswith("/"):
-        options = ["/help"] + command_names
-        selected_command = st.selectbox("Choose approved command", options, format_func=lambda value: f"{value} - {command_help.get(value, 'Show available commands')}")
-    run_cols = st.columns([0.22, 0.78])
-    with run_cols[0]:
-        run_command = st.button("Run command", type="primary", use_container_width=True, disabled=not command_text.strip().startswith("/"))
-    with run_cols[1]:
-        if selected_command:
-            st.caption(command_help.get(selected_command, "Show available commands and limits."))
-        else:
-            st.caption("For data questions, use the chat box below.")
-    if run_command:
-        command_to_run = selected_command or command_text.strip().split()[0]
-        answer, download = run_assistant_slash_command(command_to_run)
-        append_assistant_exchange(command_to_run, answer, download)
-        st.rerun()
+
+    st.markdown('<div class="console-label">Common questions</div>', unsafe_allow_html=True)
+    for row_start in range(0, len(quick_questions), 2):
+        cols = st.columns(2)
+        for idx, question in enumerate(quick_questions[row_start : row_start + 2]):
+            with cols[idx]:
+                if st.button(question, key=f"faq_{row_start}_{idx}", use_container_width=True):
+                    submit_assistant_question(question, context)
+                    st.rerun()
+
+    st.markdown('<div class="console-label">Approved commands</div>', unsafe_allow_html=True)
+    command_buttons = ["/help"] + command_names
+    for row_start in range(0, len(command_buttons), 3):
+        cols = st.columns(3)
+        for idx, command in enumerate(command_buttons[row_start : row_start + 3]):
+            with cols[idx]:
+                if st.button(command, key=f"cmd_{row_start}_{idx}", use_container_width=True):
+                    submit_assistant_question(command, context)
+                    st.rerun()
+
+    with st.form("lab_console_form", clear_on_submit=True):
+        user_text = st.text_input("Ask Dr. Bio or type /help", placeholder="Example: Which papers were rejected and why?  or  /export_fortrain_zip")
+        submitted = st.form_submit_button("Send to Dr. Bio", type="primary", use_container_width=True)
+        if submitted:
+            submit_assistant_question(user_text, context)
+            st.rerun()
 
 
 def dataset_assistant_tab() -> None:
@@ -1198,7 +1226,6 @@ def dataset_assistant_tab() -> None:
     c2.metric("Materials", counts.get("materials", 0))
     c3.metric("Formulations", counts.get("formulations", 0))
     c4.metric("forTrain rows", counts.get("forTrain_rows", 0))
-    render_command_console()
 
     quick_questions = [
         "Summarize the current dataset.",
@@ -1210,33 +1237,15 @@ def dataset_assistant_tab() -> None:
         "How do I export the training data?",
         "/help",
     ]
-    selected = st.selectbox("Quick question", [""] + quick_questions)
-    typed = st.chat_input("Ask about data, or type / for approved commands")
-    question = typed or selected
 
     if "assistant_messages" not in st.session_state:
         st.session_state["assistant_messages"] = []
 
+    render_lab_console_controls(context, quick_questions)
+
     for message in st.session_state["assistant_messages"]:
         with st.chat_message(message["role"]):
             render_assistant_message(message)
-
-    if question:
-        st.session_state["assistant_messages"].append({"role": "user", "content": question})
-        with st.chat_message("user"):
-            st.write(question)
-        with st.chat_message("assistant"):
-            if question.strip().startswith("/"):
-                answer, download = run_assistant_slash_command(question)
-            else:
-                with st.spinner("Reading CSV snapshot..."):
-                    answer = answer_dataset_question(question, context)
-                download = None
-            assistant_message = {"role": "assistant", "content": answer}
-            if download:
-                assistant_message["download"] = download
-            render_assistant_message(assistant_message)
-        st.session_state["assistant_messages"].append(assistant_message)
 
     if st.button("Clear assistant chat"):
         st.session_state["assistant_messages"] = []
