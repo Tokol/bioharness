@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import argparse
+import json
 import zipfile
 from io import BytesIO
 from pathlib import Path
@@ -20,8 +22,15 @@ from harness_config import (
 from utils import read_table
 
 
+COMMAND_OUTPUTS = {
+    "export_fortrain_zip": "biomaterial_forTrain.zip",
+    "export_dataset_zip": "biomaterial_datasets.zip",
+    "export_audit_bundle_zip": "biomaterial_audit_bundle.zip",
+}
+
+
 def zip_existing_files(files: list[tuple[str, Path]]) -> bytes:
-    existing_files = [(arcname, path) for arcname, path in files if path.exists() and path.is_file()]
+    existing_files = [(arcname, path) for arcname, path in files if exportable_file_has_data(path)]
     if not existing_files:
         return b""
     buffer = BytesIO()
@@ -30,6 +39,17 @@ def zip_existing_files(files: list[tuple[str, Path]]) -> bytes:
             archive.writestr(arcname, path.read_bytes())
     buffer.seek(0)
     return buffer.getvalue()
+
+
+def exportable_file_has_data(path: Path) -> bool:
+    if not path.exists() or not path.is_file():
+        return False
+    if path.suffix.lower() in {".csv", ".xlsx", ".xls"}:
+        try:
+            return not read_table(path).empty
+        except Exception:
+            return False
+    return path.stat().st_size > 0
 
 
 def train_export_files() -> list[tuple[str, Path]]:
@@ -124,3 +144,87 @@ def run_approved_command(name: str) -> object:
     if not callable(runner):
         raise ValueError(f"Approved command is not callable: {name}")
     return runner()
+
+
+def explain_commands() -> str:
+    lines = [
+        "Approved harness commands:",
+        "",
+    ]
+    for item in approved_command_catalog():
+        lines.append(f"- {item['command']}: {item['description']} Writes data: {item['writes_data']}.")
+    lines.extend(
+        [
+            "",
+            "Limits:",
+            "- Natural language is only mapped to this allowlist.",
+            "- No shell commands are executed.",
+            "- Export commands only read allowlisted project CSV/XLSX files.",
+            "- If the matching files are empty or missing, the command explains that instead of failing.",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def command_from_prompt(prompt: str) -> str | None:
+    text = prompt.lower()
+    if any(term in text for term in ["what command", "which command", "help", "list command", "what can you do", "limitation", "limit"]):
+        return "help"
+    if any(term in text for term in ["smoke", "health", "check", "validate files", "validation check"]):
+        return "validation_smoke_check"
+    if any(term in text for term in ["audit", "logs", "rejection", "rejected", "bundle"]):
+        return "export_audit_bundle_zip"
+    if any(term in text for term in ["fortrain", "for train", "training data", "ml data", "machine learning"]):
+        return "export_fortrain_zip"
+    if any(term in text for term in ["dataset", "datasets", "materials", "formulation", "component", "mapping"]):
+        return "export_dataset_zip"
+    if any(term in text for term in ["export", "download", "zip"]):
+        return "help"
+    return None
+
+
+def command_is_empty(name: str, result: object) -> bool:
+    if isinstance(result, bytes):
+        return len(result) == 0
+    if name == "validation_smoke_check" and isinstance(result, dict):
+        return False
+    return result in (None, "", [], {})
+
+
+def run_prompt(prompt: str, output_dir: Path | None = None) -> str:
+    command = command_from_prompt(prompt)
+    if command in {None, "help"}:
+        return explain_commands()
+
+    result = run_approved_command(command)
+    if command_is_empty(command, result):
+        return f"`{command}` matched your request, but there is no data available for that export yet."
+
+    if isinstance(result, bytes):
+        output_dir = output_dir or Path.cwd()
+        output_dir.mkdir(parents=True, exist_ok=True)
+        filename = COMMAND_OUTPUTS.get(command, f"{command}.zip")
+        output_path = output_dir / filename
+        output_path.write_bytes(result)
+        return f"Ran `{command}`. Wrote `{output_path}`."
+
+    if isinstance(result, dict):
+        return f"Ran `{command}`.\n{json.dumps(result, indent=2, ensure_ascii=True)}"
+
+    return f"Ran `{command}`.\n{result}"
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Run approved Bio Material Harness commands from a natural-language prompt.")
+    parser.add_argument("prompt", nargs="*", help="Natural-language request, for example: export forTrain data")
+    parser.add_argument("--out", default=".", help="Output folder for ZIP exports. Default: current folder.")
+    args = parser.parse_args()
+
+    prompt = " ".join(args.prompt).strip()
+    if not prompt:
+        prompt = "help"
+    print(run_prompt(prompt, Path(args.out)))
+
+
+if __name__ == "__main__":
+    main()

@@ -63,6 +63,16 @@ The harness does not expose arbitrary shell access. Instead it exposes a small a
 
 These commands read allowlisted project files only. They do not execute shell commands, edit CSV rows, or touch secrets.
 
+The same allowlist can be triggered from a small natural-language CLI:
+
+```bash
+python harness_commands.py "export the forTrain data for ML" --out exports
+python harness_commands.py "run a validation smoke check"
+python harness_commands.py "what commands can you run?"
+```
+
+If a request does not match an approved command, the CLI explains the available commands and limits. If an export has no matching data yet, it returns a clear message instead of crashing.
+
 ## Extension Skills
 
 The project includes local skill specifications under `skills/`:
