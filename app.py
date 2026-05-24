@@ -356,7 +356,7 @@ def render_header() -> None:
             <div>
                 <div class="pill">Dr. Bio's Material Lab</div>
                 <h1>Turn research papers into ML-ready biomaterial data.</h1>
-                <p>Robo-Assist inspects the sample, Mixer extracts formulations, Scope checks the dataset, and Trainer packages clean training CSVs.</p>
+                <p>Extract formulation, material, processing, and property data from biomaterial papers, then prepare clean CSV bundles for ML workflows.</p>
                 <div class="hero-actions">
                     <span class="hero-chip">Evidence-first extraction</span>
                     <span class="hero-chip">Approved commands only</span>
@@ -1331,9 +1331,9 @@ def main() -> None:
     with st.sidebar:
         st.image(str(MASCOTS["dr_bio"]), use_container_width=True)
         st.title("Dr. Bio's Lab")
-        st.caption("Validate samples, mix formulations, and package training CSVs.")
+        st.caption("Extract formulation, material, and property data from papers for ML-ready datasets.")
         st.markdown("---")
-        st.metric("Completed lab runs", len(list_applied_reviews()))
+        st.metric("Exported papers", len(list_applied_reviews()))
         render_sidebar_model_mode()
         apply_model_mode_from_sidebar()
         st.markdown("---")
