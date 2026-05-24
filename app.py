@@ -7,7 +7,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from harness_commands import approved_command_catalog, export_audit_bundle_zip, export_dataset_zip, export_fortrain_zip
+from harness_commands import COMMAND_OUTPUTS, approved_command_catalog, export_audit_bundle_zip, export_dataset_zip, export_fortrain_zip, run_approved_command
 from harness_config import EXTRACTED_SOURCE_CSV, EXTRACTED_SOURCE_XLSX, FORMULATION_COMPONENTS, FOR_TRAIN_DIR, FORMULATION_DATASET, MATERIAL_LIBRARY, MATERIAL_NAME_MAPPING, OPENAI_KEY_FILE, PROPERTY_TARGETS, REJECTION_LOG, UPLOAD_DIR
 from harness_core import (
     LLM_PROVIDER_ENV,
@@ -786,10 +786,59 @@ def answer_dataset_question(question: str, context: dict[str, object]) -> str:
     return fallback_assistant_answer(question, context)
 
 
+def slash_command_help() -> str:
+    lines = [
+        "Available slash commands:",
+        "",
+        "- `/help`",
+    ]
+    for item in approved_command_catalog():
+        lines.append(f"- `/{item['command']}` - {item['description']}")
+    lines.extend(
+        [
+            "",
+            "Only slash commands run approved actions. Normal chat remains read-only.",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def run_assistant_slash_command(question: str) -> tuple[str, dict[str, object] | None]:
+    command = question.strip().split()[0].lstrip("/")
+    if command in {"", "help", "commands"}:
+        return slash_command_help(), None
+    allowed = {item["command"] for item in approved_command_catalog()}
+    if command not in allowed:
+        return f"`/{command}` is not an approved command.\n\n{slash_command_help()}", None
+    result = run_approved_command(command)
+    if isinstance(result, bytes):
+        if not result:
+            return f"`/{command}` ran, but there is no data available for that export yet.", None
+        filename = COMMAND_OUTPUTS.get(command, f"{command}.zip")
+        return f"`/{command}` prepared `{filename}`.", {"label": f"Download {filename}", "file_name": filename, "data": result}
+    if isinstance(result, dict):
+        return f"`/{command}` result:\n\n```json\n{json.dumps(result, indent=2, ensure_ascii=True)}\n```", None
+    return f"`/{command}` result:\n\n{result}", None
+
+
+def render_assistant_message(message: dict[str, object]) -> None:
+    st.write(message["content"])
+    download = message.get("download")
+    if isinstance(download, dict):
+        st.download_button(
+            str(download.get("label", "Download file")),
+            data=download.get("data", b""),
+            file_name=str(download.get("file_name", "download.zip")),
+            mime="application/zip",
+            use_container_width=True,
+            key=f"download_{len(str(download.get('data', b'')))}_{download.get('file_name', '')}_{id(message)}",
+        )
+
+
 def dataset_assistant_tab() -> None:
-    st.markdown('<div class="dashboard-title">Dataset Assistant</div>', unsafe_allow_html=True)
-    st.markdown('<div class="dashboard-subtle">Read-only assistant for the current CSV data. It can explain papers, materials, formulations, relationships, and training readiness.</div>', unsafe_allow_html=True)
-    st.info("Read-only mode: this assistant cannot edit, approve, delete, extract, or update CSV files.")
+    st.markdown('<div class="dashboard-title">Harness Assistant</div>', unsafe_allow_html=True)
+    st.markdown('<div class="dashboard-subtle">Ask about current CSV data, or type `/` to see approved harness commands.</div>', unsafe_allow_html=True)
+    st.info("Normal chat is read-only. Only explicit slash commands can run approved actions.")
 
     context = dataset_assistant_context()
     counts = context.get("counts", {})
@@ -807,9 +856,10 @@ def dataset_assistant_tab() -> None:
         "Explain the newest paper and its formulations.",
         "Which papers were rejected and why?",
         "How do I export the training data?",
+        "/help",
     ]
     selected = st.selectbox("Quick question", [""] + quick_questions)
-    typed = st.chat_input("Ask about papers, materials, formulations, or training CSVs")
+    typed = st.chat_input("Ask about data, or type / for approved commands")
     question = typed or selected
 
     if "assistant_messages" not in st.session_state:
@@ -817,17 +867,24 @@ def dataset_assistant_tab() -> None:
 
     for message in st.session_state["assistant_messages"]:
         with st.chat_message(message["role"]):
-            st.write(message["content"])
+            render_assistant_message(message)
 
     if question:
         st.session_state["assistant_messages"].append({"role": "user", "content": question})
         with st.chat_message("user"):
             st.write(question)
         with st.chat_message("assistant"):
-            with st.spinner("Reading CSV snapshot..."):
-                answer = answer_dataset_question(question, context)
-            st.write(answer)
-        st.session_state["assistant_messages"].append({"role": "assistant", "content": answer})
+            if question.strip().startswith("/"):
+                answer, download = run_assistant_slash_command(question)
+            else:
+                with st.spinner("Reading CSV snapshot..."):
+                    answer = answer_dataset_question(question, context)
+                download = None
+            assistant_message = {"role": "assistant", "content": answer}
+            if download:
+                assistant_message["download"] = download
+            render_assistant_message(assistant_message)
+        st.session_state["assistant_messages"].append(assistant_message)
 
     if st.button("Clear assistant chat"):
         st.session_state["assistant_messages"] = []
@@ -916,7 +973,7 @@ def main() -> None:
         st.markdown("---")
         render_sidebar_how_it_works()
 
-    tab1, tab2, tab3 = st.tabs(["Paper Intake", "Data Overview", "Dataset Assistant"])
+    tab1, tab2, tab3 = st.tabs(["Paper Intake", "Data Overview", "Harness Assistant"])
     with tab1:
         intake_tab()
     with tab2:

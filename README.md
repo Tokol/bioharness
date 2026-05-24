@@ -35,7 +35,7 @@ The working flow starts with paper upload and ends only when data is either safe
 6. Extract source metadata, materials, formulations, components, process variables, and measured properties.
 7. Normalize repeated materials so IDs stay consistent.
 8. Generate `forTrain/*.csv` files for ML targets only when measured property values exist.
-9. Provide a read-only Dataset Assistant for questions about papers, materials, formulations, training data, and rejected papers.
+9. Provide a Harness Assistant for read-only data questions and explicit slash commands.
 10. Export training, dataset, or audit ZIP bundles through approved commands.
 
 Core rule:
@@ -48,7 +48,7 @@ Core rule:
 - **Source Extraction Agent:** saves metadata only after validation and extraction succeed.
 - **Material/Formulation Extraction Agent:** proposes structured rows from evidence.
 - **Training Builder:** generates ML rows only from measured property values.
-- **Dataset Assistant:** answers questions from current CSV snapshots and cannot edit data.
+- **Harness Assistant:** answers questions from current CSV snapshots and runs only explicit approved slash commands.
 
 ## Approved Commands
 
@@ -72,6 +72,19 @@ python harness_commands.py "what commands can you run?"
 ```
 
 If a request does not match an approved command, the CLI explains the available commands and limits. If an export has no matching data yet, it returns a clear message instead of crashing.
+
+Inside Streamlit, the Harness Assistant also supports explicit slash commands:
+
+```text
+/
+/help
+/export_fortrain_zip
+/export_dataset_zip
+/export_audit_bundle_zip
+/validation_smoke_check
+```
+
+Normal chat remains read-only. Slash export commands prepare a download button only when matching data exists.
 
 ## Extension Skills
 
@@ -162,7 +175,7 @@ This harness reads untrusted files, calls LLMs, writes CSVs, and creates ZIP exp
 - **Skills/MCP risk:** no MCP server is loaded. `skills/` files are read as project specs only and are not executed.
 - **Supplementary ZIP risk:** ZIP parsing is limited to CSV/XLS/XLSX table files, large files are skipped, and extracted text is capped.
 - **Dataset mutation risk:** source records are saved only after successful material/formulation extraction; training rows require measured property values.
-- **Assistant risk:** the Dataset Assistant is read-only and cannot approve, delete, export, extract, or modify CSV data.
+- **Assistant risk:** normal assistant chat is read-only and cannot approve, delete, extract, or modify CSV data. Only explicit slash commands can run approved actions.
 
 Accepted limits:
 
