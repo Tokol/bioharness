@@ -224,10 +224,6 @@ Then open:
 http://localhost:8501
 ```
 
-## GitHub Notes
-
-Do not commit secrets or generated paper-derived data. This repo ignores `openai_key.txt`, virtual environments, uploads, generated CSV/XLSX files, logs, validation data, applied review archives, ZIP exports, and `forTrain/*.csv`. Empty folders are kept with `.gitkeep`.
-
 ## Assignment Theme
 
 The assignment example describes a harness where an agent talks to an LLM, uses tools, reads/writes files, and transforms one artifact into another.
