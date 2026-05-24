@@ -4,6 +4,8 @@ Bio Material Harness is a local agentic data pipeline for turning biomaterial re
 
 The project was built as a domain-specific agent harness: instead of transforming markdown into slides, it transforms research-paper evidence into biomaterial source records, material libraries, formulation rows, component mappings, and `forTrain` model-training CSVs.
 
+Live app: https://bioharness.streamlit.app/
+
 ## Architecture at a Glance
 
 The harness is layered so the model is never the only authority. The UI, validation rules, extraction agents, CSV writers, logs, and read-only assistant each have separate responsibilities.
@@ -14,11 +16,9 @@ The operational flow starts with paper upload and ends only when evidence-backed
 
 ![Bio Material Agent Workflow](images/figure_2_agent_workflow.png)
 
-## What This Is
+## What It Does
 
-This app helps collect biomaterial formulation data from papers without blindly trusting the model.
-
-It can:
+Bio Material Harness helps collect biomaterial formulation data without blindly trusting the model. It can:
 
 - Upload a PDF/TXT/MD research paper.
 - Validate whether it is a real biomaterial/formulation paper.
@@ -33,7 +33,7 @@ It can:
 - Provide a read-only Dataset Assistant for questions about current CSV data.
 - Export dataset, training, or audit bundles as ZIP files.
 
-## Why This Exists
+## Why
 
 Scientific papers are messy. Important formulation data can be in tables, paragraphs, images, or supplementary files. A plain chatbot answer is not enough because the output becomes training data.
 
@@ -50,7 +50,7 @@ The core rule is:
 
 > No evidence-backed material/formulation data means no dataset update.
 
-## Agent Flow
+## Flow
 
 1. **Paper Intake**
    - Reads PDF, TXT, or pasted paper text.
@@ -85,7 +85,7 @@ The core rule is:
    - Answers questions about papers, materials, formulations, rejected papers, and training data.
    - Cannot modify files or run extraction.
 
-## Online and Offline Modes
+## Model Modes
 
 The sidebar has a model mode selector.
 
@@ -166,7 +166,7 @@ A paper can be useful even without measured property values.
 
 The Dataset Assistant can explain where the export buttons are, but it does not trigger downloads itself.
 
-## Installation
+## Local Installation
 
 ### 1. Clone the repo
 
@@ -190,7 +190,7 @@ pip install -r requirements.txt
 
 ### 4. Add an OpenAI key for online mode
 
-For local development, create a local file:
+Create a local file:
 
 ```text
 openai_key.txt
@@ -199,17 +199,6 @@ openai_key.txt
 Put only the key inside that file.
 
 Do not commit this file.
-
-For Streamlit Cloud or other hosted deployment, do not use `openai_key.txt`. Add the key through Streamlit secrets instead:
-
-```toml
-OPENAI_API_KEY = "sk-..."
-```
-
-The app checks keys in this order:
-
-1. `OPENAI_API_KEY` from environment variables or Streamlit secrets
-2. local `openai_key.txt`
 
 ### 5. Optional OCR setup
 
@@ -235,35 +224,11 @@ Then open:
 http://localhost:8501
 ```
 
-## GitHub and Deployment Notes
+## GitHub Notes
 
-Do not commit secrets or generated paper-derived data unless you intentionally want them public.
+Do not commit secrets or generated paper-derived data. This repo ignores `openai_key.txt`, virtual environments, uploads, generated CSV/XLSX files, logs, validation data, applied review archives, ZIP exports, and `forTrain/*.csv`. Empty folders are kept with `.gitkeep`.
 
-Recommended `.gitignore` entries:
-
-```gitignore
-openai_key.txt
-.env
-__pycache__/
-.venv/
-*.zip
-
-data/uploads/*
-data/review/*
-data/applied_reviews/*
-data/extraction/*
-data/validation/*
-data/logs/*
-data/datasets/*.csv
-data/datasets/*.xlsx
-forTrain/*.csv
-```
-
-Keep empty folders with `.gitkeep` files if needed.
-
-For a public demo, prefer synthetic sample data under a separate `sample_data/` folder instead of real extracted paper data.
-
-## How This Fits the Assignment Theme
+## Assignment Theme
 
 The assignment example describes a harness where an agent talks to an LLM, uses tools, reads/writes files, and transforms one artifact into another.
 
@@ -311,14 +276,7 @@ Whitelist-style exceptions are intentionally narrow. For example, process-only f
 
 ### Evaluation Loop
 
-Partially implemented. During development, compile checks and smoke checks are run manually. The app also performs strict validation and dataset checks before writing CSVs.
-
-A future improvement would add a full automatic post-extraction audit loop:
-
-- run consistency checks after extraction
-- reject or quarantine failed rows
-- optionally retry extraction once
-- log pass/fail audit results
+Partially implemented. During development, compile checks and smoke checks are run manually. The app also performs strict validation and dataset checks before writing CSVs. A future improvement would add a full automatic post-extraction audit/retry loop.
 
 ### Context Management
 
@@ -350,131 +308,17 @@ This keeps the system easier to audit.
 
 ## Security Discussion
 
-This harness reads files, processes untrusted paper text, calls LLMs, and writes local CSV datasets. Those are real risks. This section describes the attack surface and what the project does about it.
+This harness reads files, processes untrusted paper text, calls LLMs, and writes local CSV datasets. The main risks and mitigations are:
 
-### File Operations Escaping the Working Directory
+- **File access:** uploads and generated files stay under known project folders; PDFs are deleted after text extraction; ZIP exports use explicit allowlists.
+- **Shell execution:** the app does not expose shell execution to the model or Dataset Assistant.
+- **Prompt injection:** paper text is treated as untrusted evidence; injection-like text is detected; extraction ignores references, background, metadata tags, and author instructions.
+- **Secrets:** `OPENAI_API_KEY` or `openai_key.txt` is never included in assistant context or export bundles, and key files are ignored by git.
+- **Untrusted MCP/skills:** this app does not load MCP servers or dynamic skills.
+- **Supplementary uploads:** ZIP parsing is limited to CSV/XLS/XLSX, large members are skipped, supplementary text is capped, and rows are saved only after evidence-backed extraction.
+- **Read-only assistant:** the assistant only receives CSV-derived context and has no write, delete, export-trigger, or extraction functions.
 
-Risk:
-
-- A file-processing tool could read or write outside the project.
-- A malicious upload name could try path traversal.
-- Exports could include unintended files.
-
-Mitigation:
-
-- The app writes to known project directories such as `data/` and `forTrain/`.
-- Uploaded papers are saved temporarily under `data/uploads/` and deleted after text extraction.
-- Export ZIPs are built from explicit allowlists of known CSV/XLSX paths.
-- The assistant does not receive file-write tools.
-
-Accepted risk:
-
-- This is a local Streamlit app, not a hardened multi-user server. If deployed publicly, upload path handling and file-size limits should be hardened further.
-
-### Shell Commands Constructed From Tool Output
-
-Risk:
-
-- If an agent can build shell commands from untrusted model/tool output, prompt injection can become code execution.
-
-Mitigation:
-
-- The Streamlit app does not expose shell execution to the model or Dataset Assistant.
-- The Dataset Assistant can only read CSV-derived context.
-- Exports are controlled UI buttons, not assistant-triggered shell commands.
-
-Accepted risk:
-
-- Developers may run shell commands manually during development. That is outside the app's runtime tool surface.
-
-### Prompt Injection From Files
-
-Risk:
-
-- A PDF may contain text such as “ignore previous instructions” or fake extraction instructions.
-- A paper may include keywords like biomaterial/formulation without real evidence.
-- Supplementary files may contain misleading labels.
-
-Mitigation:
-
-- Validation and extraction prompts explicitly treat paper text as untrusted evidence.
-- Prompt-injection-like terms are detected and can cap/reject validation.
-- Extraction requires evidence from the study, methods, results, figures, tables, or user-uploaded supplementary tables.
-- References, background text, metadata tags, future work, and author instructions are not accepted as extraction evidence.
-- Invalid and duplicate decisions are logged to `data/validation/rejected_papers.csv`.
-
-Accepted risk:
-
-- LLMs can still make mistakes. The harness reduces damage by requiring evidence fields and by not saving when required rows are missing.
-
-### Secrets in Environment Variables or Files
-
-Risk:
-
-- API keys could leak into model context, logs, GitHub, or exports.
-
-Mitigation:
-
-- Online mode reads `OPENAI_API_KEY` from environment variables or Streamlit secrets first, then falls back to local `openai_key.txt`.
-- The Dataset Assistant context is built from CSV data only, not environment variables or secret files.
-- Export bundles do not include `openai_key.txt`.
-- README recommends ignoring `openai_key.txt`, `.env`, generated data, and ZIP exports.
-
-Accepted risk:
-
-- The local key file may exist during development. Users must keep it out of Git and deployment bundles.
-
-### Untrusted MCP Servers and Skills
-
-Risk:
-
-- A harness that loads arbitrary MCP servers or skills can expand its tool surface unexpectedly.
-
-Mitigation:
-
-- This project does not load MCP servers.
-- This project does not load dynamic skills from a folder.
-- The model has no direct access to external tools beyond the selected LLM provider call.
-
-Accepted risk:
-
-- MCP/skill plugin loading is out of scope for this app. If added later, it should require explicit allowlists and user confirmation.
-
-### Supplementary ZIP/XLSX/CSV Uploads
-
-Risk:
-
-- ZIP files can contain huge files or many nested entries.
-- Tables can contain irrelevant or malicious text.
-
-Mitigation:
-
-- Only CSV/XLSX/XLS files are parsed from ZIP uploads.
-- ZIP members larger than 25 MB are skipped.
-- Supplementary text is capped before being sent to the model.
-- Supplementary evidence is labeled explicitly in the extraction prompt.
-- Data is only saved after evidence-backed extraction succeeds.
-
-Accepted risk:
-
-- More robust scanning would be needed for hostile public uploads.
-
-### Read-Only Dataset Assistant
-
-Risk:
-
-- A user could ask the assistant to change data or fabricate rows.
-
-Mitigation:
-
-- The assistant only receives a CSV-derived snapshot.
-- It has no write, delete, export-trigger, or extraction functions.
-- Rejection/export questions use deterministic code paths instead of free model interpretation.
-- The system prompt tells the assistant to refuse edits and answer only from supplied data.
-
-Accepted risk:
-
-- The assistant may answer imperfectly for general questions. It cannot mutate project data.
+Accepted risks: this is a local/research Streamlit app, not a hardened multi-user service. Public use should add stricter upload limits, authentication, and stronger file isolation. LLMs can still make mistakes, so the harness reduces damage by requiring evidence and refusing CSV updates when checks fail.
 
 ## Current Limitations
 
@@ -482,7 +326,7 @@ Accepted risk:
 - Offline Ollama quality depends on the local model.
 - Evaluation loop is not fully automated yet.
 - Row-level timestamps are not stored on every material/formulation row; latest run history is available from logs.
-- Public deployment should add stricter upload limits, auth, and stronger file isolation.
+- Public use should add stricter upload limits, auth, and stronger file isolation.
 
 ## License and Data Responsibility
 
