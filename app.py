@@ -274,6 +274,48 @@ def inject_css() -> None:
             padding: 2px 7px;
             margin-bottom: 4px;
         }
+        .lab-protocol {
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(198,244,229,0.24);
+            border-radius: 8px;
+            padding: 12px;
+            margin: 10px 0 14px;
+        }
+        .lab-protocol-title {
+            color: #ffffff;
+            font-size: 15px;
+            font-weight: 900;
+            margin-bottom: 10px;
+        }
+        .protocol-card {
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(198,244,229,0.14);
+            border-radius: 8px;
+            padding: 9px;
+            margin-bottom: 8px;
+        }
+        .protocol-card strong { color: #ffffff; font-size: 13px; }
+        .protocol-card p { margin: 4px 0 0; color: #d9eee9; font-size: 12px; line-height: 1.35; }
+        .command-panel {
+            background: rgba(255,255,255,0.90);
+            border: 1px solid var(--lab-line);
+            border-radius: 8px;
+            padding: 14px;
+            margin: 12px 0 16px;
+            box-shadow: 0 12px 30px rgba(15, 61, 67, 0.06);
+        }
+        .command-panel h4 { margin: 0 0 4px; color: var(--lab-ink); }
+        .command-panel p { margin: 0 0 10px; color: var(--lab-muted); font-size: 13px; }
+        .command-chip {
+            display: inline-block;
+            margin: 3px 4px 3px 0;
+            padding: 4px 8px;
+            border-radius: 999px;
+            background: var(--lab-mint);
+            color: var(--lab-teal-dark);
+            font-size: 12px;
+            font-weight: 800;
+        }
         [data-testid="stFileUploader"] {
             background: rgba(255,255,255,0.78);
             border: 1px dashed #8ccfc0;
@@ -370,20 +412,20 @@ def render_lab_progress() -> None:
 
 
 def render_sidebar_how_it_works() -> None:
-    with st.expander("Lab protocol", expanded=False):
-        st.markdown(
-            """
-            <div class="side-flow">
-                <div class="side-step"><span class="side-tag">Robo-Assist</span><br><strong>Sample inspection</strong><br>Reads PDF/text, checks qualification, duplicates, and prompt-injection text.</div>
-                <div class="side-step"><span class="side-tag">Mixer</span><br><strong>Formulation mixing</strong><br>Extracts materials, roles, wt%, processing settings, and property evidence.</div>
-                <div class="side-step"><span class="side-tag">Scope</span><br><strong>Data microscope</strong><br>Explores source papers, relationships, materials, and formulation coverage.</div>
-                <div class="side-step"><span class="side-tag">Trainer</span><br><strong>Training bay</strong><br>Builds and exports only measured-property training CSVs.</div>
-                <div class="side-step"><span class="side-tag">Dr. Bio</span><br><strong>Lab console</strong><br>Answers from CSV snapshots and runs explicit slash commands.</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        st.caption("Rule: no evidence-backed material/formulation data means no CSV update.")
+    st.markdown(
+        """
+        <div class="lab-protocol">
+            <div class="lab-protocol-title">Lab protocol</div>
+            <div class="protocol-card"><strong>Robo-Assist</strong><p>Inspects papers, relevance, duplicates, and prompt-injection-like text.</p></div>
+            <div class="protocol-card"><strong>Mixer</strong><p>Extracts materials, wt%, process settings, and property evidence.</p></div>
+            <div class="protocol-card"><strong>Scope</strong><p>Shows papers, relationships, materials, and formulation coverage.</p></div>
+            <div class="protocol-card"><strong>Trainer</strong><p>Builds and exports only measured-property training CSVs.</p></div>
+            <div class="protocol-card"><strong>Dr. Bio</strong><p>Answers from CSV snapshots and runs explicit slash commands.</p></div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.caption("Rule: no evidence-backed material/formulation data means no CSV update.")
 
 
 def save_uploaded_file(uploaded) -> Path:
@@ -1097,6 +1139,49 @@ def render_assistant_message(message: dict[str, object]) -> None:
         )
 
 
+def append_assistant_exchange(question: str, answer: str, download: dict[str, object] | None = None) -> None:
+    st.session_state["assistant_messages"].append({"role": "user", "content": question})
+    assistant_message: dict[str, object] = {"role": "assistant", "content": answer}
+    if download:
+        assistant_message["download"] = download
+    st.session_state["assistant_messages"].append(assistant_message)
+
+
+def render_command_console() -> None:
+    command_items = approved_command_catalog()
+    command_names = [f"/{item['command']}" for item in command_items]
+    command_help = {f"/{item['command']}": str(item["description"]) for item in command_items}
+    chips = "".join(f'<span class="command-chip">{html.escape(name)}</span>' for name in ["/help"] + command_names)
+    st.markdown(
+        f"""
+        <div class="command-panel">
+            <h4>Lab command console</h4>
+            <p>Type <strong>/</strong> to open approved commands. Commands are safe, allowlisted actions; normal chat stays read-only.</p>
+            <div>{chips}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    command_text = st.text_input("Command input", placeholder="Type / to choose a command", key="command_console_input", label_visibility="collapsed")
+    selected_command = ""
+    if command_text.strip().startswith("/"):
+        options = ["/help"] + command_names
+        selected_command = st.selectbox("Choose approved command", options, format_func=lambda value: f"{value} - {command_help.get(value, 'Show available commands')}")
+    run_cols = st.columns([0.22, 0.78])
+    with run_cols[0]:
+        run_command = st.button("Run command", type="primary", use_container_width=True, disabled=not command_text.strip().startswith("/"))
+    with run_cols[1]:
+        if selected_command:
+            st.caption(command_help.get(selected_command, "Show available commands and limits."))
+        else:
+            st.caption("For data questions, use the chat box below.")
+    if run_command:
+        command_to_run = selected_command or command_text.strip().split()[0]
+        answer, download = run_assistant_slash_command(command_to_run)
+        append_assistant_exchange(command_to_run, answer, download)
+        st.rerun()
+
+
 def dataset_assistant_tab() -> None:
     render_agent_banner(
         "dr_bio",
@@ -1113,6 +1198,7 @@ def dataset_assistant_tab() -> None:
     c2.metric("Materials", counts.get("materials", 0))
     c3.metric("Formulations", counts.get("formulations", 0))
     c4.metric("forTrain rows", counts.get("forTrain_rows", 0))
+    render_command_console()
 
     quick_questions = [
         "Summarize the current dataset.",
