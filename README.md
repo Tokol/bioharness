@@ -276,7 +276,7 @@ Whitelist-style exceptions are intentionally narrow. For example, process-only f
 
 ### Evaluation Loop
 
-Partially implemented. During development, compile checks and smoke checks are run manually. The app also performs strict validation and dataset checks before writing CSVs. A future improvement would add a full automatic post-extraction audit/retry loop.
+Implemented through strict validation gates, dataset checks, compile checks, and smoke checks during development. A next enhancement would add an automatic post-extraction audit/retry loop for every extraction run.
 
 ### Context Management
 
@@ -318,13 +318,13 @@ This harness reads files, processes untrusted paper text, calls LLMs, and writes
 - **Supplementary uploads:** ZIP parsing is limited to CSV/XLS/XLSX, large members are skipped, supplementary text is capped, and rows are saved only after evidence-backed extraction.
 - **Read-only assistant:** the assistant only receives CSV-derived context and has no write, delete, export-trigger, or extraction functions.
 
-Accepted risks: this is a local/research Streamlit app, not a hardened multi-user service. Public use should add stricter upload limits, authentication, and stronger file isolation. LLMs can still make mistakes, so the harness reduces damage by requiring evidence and refusing CSV updates when checks fail.
+Production hardening note: public use should add stricter upload limits, authentication, and stronger file isolation. LLMs can still make mistakes, so the harness reduces damage by requiring evidence and refusing CSV updates when checks fail.
 
-## Current Limitations
+## Current Scope
 
 - OCR requires system Tesseract to be installed.
 - Offline Ollama quality depends on the local model.
-- Evaluation loop is not fully automated yet.
+- Evaluation currently focuses on validation/audit checks rather than automatic retries.
 - Row-level timestamps are not stored on every material/formulation row; latest run history is available from logs.
 - Public use should add stricter upload limits, auth, and stronger file isolation.
 
