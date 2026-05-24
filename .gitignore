@@ -1,0 +1,26 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+.idea/
+*.zip
+openai_key.txt
+Elicit - Natural Fiber Bio-Based Composite Data Sources - readable table.xlsx
+
+data/uploads/*
+data/review/*
+data/applied_reviews/*
+data/validation/*
+data/extraction/*
+data/datasets/*
+data/logs/*
+forTrain/*.csv
+
+!data/uploads/.gitkeep
+!data/review/.gitkeep
+!data/applied_reviews/.gitkeep
+!data/validation/.gitkeep
+!data/extraction/.gitkeep
+!data/datasets/.gitkeep
+!data/logs/.gitkeep
+!forTrain/.gitkeep
