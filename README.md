@@ -1,121 +1,103 @@
 # Bio Material Harness
 
-Bio Material Harness is a local agentic data pipeline for turning biomaterial research papers into structured CSV datasets for future machine learning.
-
-The project was built as a domain-specific agent harness: instead of transforming markdown into slides, it transforms research-paper evidence into biomaterial source records, material libraries, formulation rows, component mappings, and `forTrain` model-training CSVs.
-
 Live app: https://bioharness.streamlit.app/
 
-## Architecture at a Glance
+Bio Material Harness is a secure agent harness for turning biomaterial research papers into structured CSV datasets for machine-learning work. It validates uploaded papers, rejects irrelevant or unsafe inputs, extracts evidence-backed material/formulation data, and exports training-ready CSV bundles.
 
-The harness is layered so the model is never the only authority. The UI, validation rules, extraction agents, CSV writers, logs, and read-only assistant each have separate responsibilities.
+The project maps the assignment idea of an extensible agent harness to a biomaterial data workflow:
+
+```text
+research paper + optional supplementary tables
+        -> validation agent
+        -> source metadata
+        -> material/formulation datasets
+        -> forTrain ML CSVs
+        -> read-only dataset assistant
+```
+
+## Architecture
+
+The harness is layered so the LLM is never the only authority. The UI, validation gates, extraction agents, CSV writers, logs, export commands, and assistant have separate responsibilities.
 
 ![Layered Bio Material Agent Harness](images/figure_1_layered_agent_harness.png)
 
-The operational flow starts with paper upload and ends only when evidence-backed data is safely written to local CSVs or rejected with a logged reason.
+The working flow starts with paper upload and ends only when data is either safely written to local CSVs or rejected with a logged reason.
 
 ![Bio Material Agent Workflow](images/figure_2_agent_workflow.png)
 
 ## What It Does
 
-Bio Material Harness helps collect biomaterial formulation data without blindly trusting the model. It can:
+1. Upload a PDF/TXT/MD paper or paste paper text.
+2. Validate that it is a real biomaterial/formulation paper.
+3. Reject invalid, duplicate, irrelevant, or prompt-injection-like papers.
+4. Detect supplementary data links for valid papers.
+5. Accept manual CSV/XLSX/ZIP supplementary evidence.
+6. Extract source metadata, materials, formulations, components, process variables, and measured properties.
+7. Normalize repeated materials so IDs stay consistent.
+8. Generate `forTrain/*.csv` files for ML targets only when measured property values exist.
+9. Provide a read-only Dataset Assistant for questions about papers, materials, formulations, training data, and rejected papers.
+10. Export training, dataset, or audit ZIP bundles through approved commands.
 
-- Upload a PDF/TXT/MD research paper.
-- Validate whether it is a real biomaterial/formulation paper.
-- Reject irrelevant papers and log why.
-- Detect duplicates against already extracted source papers.
-- Detect supplementary data links in valid papers.
-- Accept manual supplementary CSV/XLSX/ZIP uploads.
-- Extract materials, formulation/process rows, components, and measured properties.
-- Separate process-only formulations from training-ready property rows.
-- Normalize repeated materials so the same material keeps the same `material_id`.
-- Generate local training CSVs under `forTrain/`.
-- Provide a read-only Dataset Assistant for questions about current CSV data.
-- Export dataset, training, or audit bundles as ZIP files.
-
-## Why
-
-Scientific papers are messy. Important formulation data can be in tables, paragraphs, images, or supplementary files. A plain chatbot answer is not enough because the output becomes training data.
-
-The harness adds control around the model:
-
-- validation before extraction
-- duplicate checks before saving
-- evidence requirements before CSV updates
-- rejection logs for failed papers
-- read-only assistant boundaries
-- local export bundles for reproducible ML datasets
-
-The core rule is:
+Core rule:
 
 > No evidence-backed material/formulation data means no dataset update.
 
-## Flow
+## Agent Roles
 
-1. **Paper Intake**
-   - Reads PDF, TXT, or pasted paper text.
-   - Uses OCR fallback when configured and needed.
-   - Deletes uploaded PDFs after text extraction.
+- **Paper Validation Agent:** checks paper quality, biomaterial relevance, formulation signals, duplicates, and injection-like text.
+- **Source Extraction Agent:** saves metadata only after validation and extraction succeed.
+- **Material/Formulation Extraction Agent:** proposes structured rows from evidence.
+- **Training Builder:** generates ML rows only from measured property values.
+- **Dataset Assistant:** answers questions from current CSV snapshots and cannot edit data.
 
-2. **Paper Validation Agent**
-   - Checks whether the document is paper-like.
-   - Checks biomaterial, formulation, experimental, and property signals.
-   - Detects prompt-injection-like text.
-   - Rejects invalid, irrelevant, or duplicate papers.
+## Approved Commands
 
-3. **Supplementary Data Check**
-   - For qualified papers only, finds likely supplementary/data repository links.
-   - Lets the user manually upload CSV/XLSX/ZIP supplementary files.
+The harness does not expose arbitrary shell access. Instead it exposes a small allowlist in `harness_commands.py`:
 
-4. **Source Extraction**
-   - Saves paper metadata only after extraction succeeds.
-   - Records title, DOI, authors, summary, conclusion, confidence, and quality.
+| Command | Purpose |
+| --- | --- |
+| `export_fortrain_zip` | ZIP current `forTrain/` CSVs for ML work. |
+| `export_dataset_zip` | ZIP source, material, formulation, component, and mapping files. |
+| `export_audit_bundle_zip` | ZIP datasets plus validation, rejection, applied-run, and training logs. |
+| `validation_smoke_check` | Read known dataset paths and report basic health. |
 
-5. **Material/Formulation Extraction Agent**
-   - Extracts materials, roles, wt%, formulation codes, process variables, and measured properties.
-   - Reuses existing material IDs when the material is already known.
-   - Saves process-only formulations even when measured properties are missing.
+These commands read allowlisted project files only. They do not execute shell commands, edit CSV rows, or touch secrets.
 
-6. **Training Builder**
-   - Builds `forTrain` rows only from measured property values.
-   - Process-only rows stay useful in the formulation dataset, but they are not used as ML targets.
+## Extension Skills
 
-7. **Dataset Assistant**
-   - Read-only assistant for current CSVs.
-   - Answers questions about papers, materials, formulations, rejected papers, and training data.
-   - Cannot modify files or run extraction.
+The project includes local skill specifications under `skills/`:
+
+```text
+skills/biomaterial_extraction/SKILL.md
+skills/export_training_data/SKILL.md
+```
+
+These files document the harness extensions:
+
+- biomaterial extraction rules
+- training export behavior
+
+They are extension specs, not executable plugins. The app does not execute code from `skills/`, which keeps the extension surface simple and safer while still making the harness extensible.
 
 ## Model Modes
 
-The sidebar has a model mode selector.
+**Online GPT API** is the default mode. The app looks for the key in Streamlit secrets or `OPENAI_API_KEY`, then local `openai_key.txt` for local development.
 
-### Online GPT API
-
-Default mode. Uses the OpenAI API with the configured key.
-
-### Offline Ollama
-
-Offline mode calls a local Ollama server:
+**Offline Ollama** can call a local Ollama server, for example:
 
 ```text
 http://localhost:11434
 ```
 
-Example model:
-
-```text
-qwen2.5:7b
-```
-
-Ollama normally does not need an API key. The model must be installed locally, for example:
+Example setup:
 
 ```bash
 ollama pull qwen2.5:7b
 ```
 
-The same validation and CSV safety rules apply in both modes. If the local model fails or returns bad JSON, the harness returns no model data and avoids unsafe CSV updates.
+The same validation and CSV safety rules apply in both modes.
 
-## Data Outputs
+## Outputs
 
 Generated local outputs include:
 
@@ -132,89 +114,16 @@ data/logs/applied_reviews.csv
 forTrain/*.csv
 ```
 
-The current property targets are configured in `harness_config.py`.
+Process-only formulation rows are kept in the formulation dataset. Training CSV rows are generated only when measured property values are present.
 
-## Process-Only vs Training-Ready
-
-A paper can be useful even without measured property values.
-
-**Process-only** means:
-
-- material/formulation/process evidence exists
-- measured property values are missing or not linked
-- rows are saved to formulation/material datasets
-- no ML target row is added to `forTrain`
-
-**Training-ready** means:
-
-- material/formulation/process evidence exists
-- measured property values exist
-- property target rows can be generated in `forTrain`
-
-## Exports
-
-`Data Overview -> Files` provides three read-only exports:
-
-- **Download forTrain ZIP**
-  - only ML training CSVs from `forTrain/`
-
-- **Download dataset ZIP**
-  - source paper, material, formulation, component, and mapping files
-
-- **Download audit bundle ZIP**
-  - datasets, validation logs, rejection logs, applied run logs, and `forTrain` CSVs
-
-The Dataset Assistant can explain where the export buttons are, but it does not trigger downloads itself.
-
-## Local Installation
-
-### 1. Clone the repo
+## Installation
 
 ```bash
 git clone <your-repo-url>
 cd BioMaterialHarness
-```
-
-### 2. Create a virtual environment
-
-```bash
 python3 -m venv .venv
 . .venv/bin/activate
-```
-
-### 3. Install Python dependencies
-
-```bash
 pip install -r requirements.txt
-```
-
-### 4. Add an OpenAI key for online mode
-
-Create a local file:
-
-```text
-openai_key.txt
-```
-
-Put only the key inside that file.
-
-Do not commit this file.
-
-### 5. Optional OCR setup
-
-The Python OCR packages are in `requirements.txt`, but Tesseract itself must be installed on the system.
-
-On macOS with Homebrew:
-
-```bash
-brew install tesseract
-```
-
-If Tesseract is not installed, normal PDF text extraction still works, but OCR fallback will show a clear error when needed.
-
-### 6. Run the app
-
-```bash
 streamlit run app.py
 ```
 
@@ -224,108 +133,42 @@ Then open:
 http://localhost:8501
 ```
 
-## Assignment Theme
+For local online mode, create `openai_key.txt` and put only the API key inside it. Do not commit this file.
 
-The assignment example describes a harness where an agent talks to an LLM, uses tools, reads/writes files, and transforms one artifact into another.
+Optional OCR support requires system Tesseract:
 
-This project maps that idea to biomaterial data collection:
-
-```text
-Research paper PDF + supplementary tables
-        -> validation
-        -> source metadata
-        -> material library
-        -> formulation/component datasets
-        -> training CSVs for ML
+```bash
+brew install tesseract
 ```
-
-It uses a staged harness rather than an unconstrained chatbot. The agent roles are separated:
-
-- Paper Validation Agent
-- Source Extraction
-- Material/Formulation Extraction
-- Training Builder
-- Dataset Assistant
-
-The harness decides when data can be saved. The model proposes structured JSON, but CSV mutation is guarded by code.
-
-## Inspiration Features
-
-### Offline
-
-Implemented through Ollama mode. The harness can call a local model at `localhost:11434`, so extraction can run without cloud API calls when a local model is available.
-
-### Safety Interlock
-
-Implemented as domain gates:
-
-- invalid paper rejection
-- duplicate detection
-- prompt-injection detection
-- evidence-required extraction
-- source record saved only after successful extraction
-- training rows only from measured property values
-- rejection log for invalid and duplicate papers
-- read-only Dataset Assistant
-
-Whitelist-style exceptions are intentionally narrow. For example, process-only formulation rows can be accepted without measured properties, but only when source evidence exists.
-
-### Evaluation Loop
-
-Implemented through strict validation gates, dataset checks, compile checks, and smoke checks during development. A next enhancement would add an automatic post-extraction audit/retry loop for every extraction run.
-
-### Context Management
-
-Implemented through the Dataset Assistant. Instead of feeding all history to a model, the app builds a compact CSV-derived snapshot:
-
-- counts
-- latest extraction run
-- recent papers
-- materials
-- formulations
-- relationships
-- process-only rows
-- training inventory
-- recent rejections
-
-The assistant answers from that summary and current CSV records.
-
-### Multi-Agent
-
-Implemented as a staged agentic pipeline. It is not a free-form planner/executor/critic swarm. The harness assigns responsibilities:
-
-- validation decides whether a paper can proceed
-- extraction proposes rows
-- normalization maps materials
-- training builder generates ML-ready CSVs
-- read-only assistant explains existing data
-
-This keeps the system easier to audit.
 
 ## Security Discussion
 
-This harness reads files, processes untrusted paper text, calls LLMs, and writes local CSV datasets. The main risks and mitigations are:
+This harness reads untrusted files, calls LLMs, writes CSVs, and creates ZIP exports. The main risks and mitigations are:
 
-- **File access:** uploads and generated files stay under known project folders; PDFs are deleted after text extraction; ZIP exports use explicit allowlists.
-- **Shell execution:** the app does not expose shell execution to the model or Dataset Assistant.
-- **Prompt injection:** paper text is treated as untrusted evidence; injection-like text is detected; extraction ignores references, background, metadata tags, and author instructions.
-- **Secrets:** `OPENAI_API_KEY` or `openai_key.txt` is never included in assistant context or export bundles, and key files are ignored by git.
-- **Untrusted MCP/skills:** this app does not load MCP servers or dynamic skills.
-- **Supplementary uploads:** ZIP parsing is limited to CSV/XLS/XLSX, large members are skipped, supplementary text is capped, and rows are saved only after evidence-backed extraction.
-- **Read-only assistant:** the assistant only receives CSV-derived context and has no write, delete, export-trigger, or extraction functions.
+- **File access escaping the project:** uploads and generated outputs stay under known project folders; export commands use explicit file allowlists.
+- **Shell command risk:** the app does not expose shell execution to the model or Dataset Assistant. Only named Python commands in `harness_commands.py` are available.
+- **Prompt injection:** paper and supplementary text are treated as untrusted evidence; injection-like text is detected and author/system-like instructions inside papers are ignored.
+- **Secrets:** `OPENAI_API_KEY` and `openai_key.txt` are not included in assistant context or export bundles. Key files are ignored by git.
+- **Skills/MCP risk:** no MCP server is loaded. `skills/` files are read as project specs only and are not executed.
+- **Supplementary ZIP risk:** ZIP parsing is limited to CSV/XLS/XLSX table files, large files are skipped, and extracted text is capped.
+- **Dataset mutation risk:** source records are saved only after successful material/formulation extraction; training rows require measured property values.
+- **Assistant risk:** the Dataset Assistant is read-only and cannot approve, delete, export, extract, or modify CSV data.
 
-Production hardening note: public use should add stricter upload limits, authentication, and stronger file isolation. LLMs can still make mistakes, so the harness reduces damage by requiring evidence and refusing CSV updates when checks fail.
+Accepted limits:
 
-## Current Scope
-
-- OCR requires system Tesseract to be installed.
 - Offline Ollama quality depends on the local model.
-- Evaluation currently focuses on validation/audit checks rather than automatic retries.
-- Row-level timestamps are not stored on every material/formulation row; latest run history is available from logs.
-- Public use should add stricter upload limits, auth, and stronger file isolation.
+- OCR requires Tesseract to be installed on the system.
+- Public deployments should add stronger authentication, upload limits, and file isolation.
 
-## License and Data Responsibility
+## Deliverables Covered
 
-This repository should contain code, not private API keys or copyrighted/generated paper-derived datasets unless you have permission to publish them.
+- Working harness code in this repo.
+- Local extension specs in `skills/`.
+- README with install instructions and security discussion.
+- Screenshots/architecture figures in `images/`.
+- Approved command layer in `harness_commands.py`.
+- Live Streamlit app link above.
 
-Generated CSVs are intended for local research workflow and should be reviewed before sharing publicly.
+## Data Responsibility
+
+This repository should contain code, not private API keys or copyrighted/generated paper-derived datasets unless you have permission to publish them. Generated CSVs are intended for local research workflow and should be reviewed before sharing publicly.

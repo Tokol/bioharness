@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import json
 import os
-import zipfile
-from io import BytesIO
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 
-from harness_config import APPLIED_LOG, EXTRACTED_SOURCE_CSV, EXTRACTED_SOURCE_XLSX, FORMULATION_COMPONENTS, FOR_TRAIN_DIR, FORMULATION_DATASET, MATERIAL_LIBRARY, MATERIAL_NAME_MAPPING, OPENAI_KEY_FILE, PROPERTY_TARGETS, REJECTION_LOG, UPLOAD_DIR, VALIDATION_LOG
+from harness_commands import approved_command_catalog, export_audit_bundle_zip, export_dataset_zip, export_fortrain_zip
+from harness_config import EXTRACTED_SOURCE_CSV, EXTRACTED_SOURCE_XLSX, FORMULATION_COMPONENTS, FOR_TRAIN_DIR, FORMULATION_DATASET, MATERIAL_LIBRARY, MATERIAL_NAME_MAPPING, OPENAI_KEY_FILE, PROPERTY_TARGETS, REJECTION_LOG, UPLOAD_DIR
 from harness_core import (
     LLM_PROVIDER_ENV,
     OPENAI_API_KEY_ENV,
@@ -37,6 +36,15 @@ def inject_css() -> None:
         .stApp { background: #f6f8fb; }
         [data-testid="stSidebar"] { background: #101820; }
         [data-testid="stSidebar"] * { color: #eef5f8; }
+        [data-testid="stSidebar"] [data-testid="stExpander"] {
+            background: #172632;
+            border: 1px solid #314656;
+            border-radius: 8px;
+        }
+        [data-testid="stSidebar"] [data-testid="stExpander"] summary,
+        [data-testid="stSidebar"] [data-testid="stExpander"] summary * {
+            color: #ff3b30 !important;
+        }
         .hero {
             background: #101820;
             color: #ffffff;
@@ -395,46 +403,6 @@ def train_inventory() -> pd.DataFrame:
     return pd.DataFrame(train_rows)
 
 
-def zip_existing_files(files: list[tuple[str, Path]]) -> bytes:
-    existing_files = [(arcname, path) for arcname, path in files if path.exists() and path.is_file()]
-    if not existing_files:
-        return b""
-    buffer = BytesIO()
-    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-        for arcname, path in existing_files:
-            archive.writestr(arcname, path.read_bytes())
-    buffer.seek(0)
-    return buffer.getvalue()
-
-
-def train_export_files() -> list[tuple[str, Path]]:
-    return [(f"forTrain/{path.name}", path) for path in sorted(FOR_TRAIN_DIR.glob("*.csv"))]
-
-
-def dataset_export_files() -> list[tuple[str, Path]]:
-    return [
-        ("data/extraction/biomaterial_source_papers.csv", EXTRACTED_SOURCE_CSV),
-        ("data/extraction/biomaterial_source_papers.xlsx", EXTRACTED_SOURCE_XLSX),
-        ("data/datasets/material_library.csv", MATERIAL_LIBRARY),
-        ("data/datasets/material_name_mapping.csv", MATERIAL_NAME_MAPPING),
-        ("data/datasets/formulation_dataset.csv", FORMULATION_DATASET),
-        ("data/datasets/formulation_components.csv", FORMULATION_COMPONENTS),
-    ]
-
-
-def audit_export_files() -> list[tuple[str, Path]]:
-    files = dataset_export_files()
-    files.extend(
-        [
-            ("data/validation/validation_log.csv", VALIDATION_LOG),
-            ("data/validation/rejected_papers.csv", REJECTION_LOG),
-            ("data/logs/applied_reviews.csv", APPLIED_LOG),
-        ]
-    )
-    files.extend(train_export_files())
-    return files
-
-
 def relationship_table(formulations: pd.DataFrame, components: pd.DataFrame) -> pd.DataFrame:
     if formulations.empty:
         return pd.DataFrame()
@@ -587,9 +555,9 @@ def datasets_tab() -> None:
     with files:
         st.subheader("Export")
         export_cols = st.columns(3)
-        train_zip = zip_existing_files(train_export_files())
-        dataset_zip = zip_existing_files(dataset_export_files())
-        audit_zip = zip_existing_files(audit_export_files())
+        train_zip = export_fortrain_zip()
+        dataset_zip = export_dataset_zip()
+        audit_zip = export_audit_bundle_zip()
         export_cols[0].download_button(
             "Download forTrain ZIP",
             data=train_zip,
@@ -615,6 +583,8 @@ def datasets_tab() -> None:
             use_container_width=True,
         )
         st.caption("Exports are read-only snapshots of existing CSV/XLSX files. They do not change the dataset.")
+        st.subheader("Approved Harness Commands")
+        st.dataframe(pd.DataFrame(approved_command_catalog()), hide_index=True, use_container_width=True)
 
         file_rows = []
         for label, path in [
