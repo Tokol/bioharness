@@ -1,8 +1,8 @@
-# Bio Material Harness
+# Dr. Bio's Material Lab
 
 Live app: https://bioharness.streamlit.app/
 
-Bio Material Harness is a secure agent harness for turning biomaterial research papers into structured CSV datasets for machine-learning work. It validates uploaded papers, rejects irrelevant or unsafe inputs, extracts evidence-backed material/formulation data, and exports training-ready CSV bundles.
+Dr. Bio's Material Lab is a secure agent harness for turning biomaterial research papers into structured CSV datasets for machine-learning work. It validates uploaded papers, rejects irrelevant or unsafe inputs, extracts evidence-backed material/formulation data, and exports training-ready CSV bundles.
 
 The project maps the assignment idea of an extensible agent harness to a biomaterial data workflow:
 

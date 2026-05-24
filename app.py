@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import base64
 import json
 import os
+import html
 from pathlib import Path
 
 import pandas as pd
@@ -26,72 +28,225 @@ from harness_core import (
 from utils import extract_supplementary_links, extract_supplementary_text_from_file, extract_text_from_file, read_table, stable_hash
 
 
-APP_TITLE = "Bio Material Harness"
+APP_TITLE = "Dr. Bio's Material Lab"
+BASE_DIR = Path(__file__).parent
+MASCOTS = {
+    "dr_bio": BASE_DIR / "images" / "Dr.Bio.png",
+    "robo": BASE_DIR / "images" / "Robo-Assist.png",
+    "mixer": BASE_DIR / "images" / "Mixer.png",
+    "scope": BASE_DIR / "images" / "Scope.png",
+    "trainer": BASE_DIR / "images" / "Trainer.png",
+}
+
+
+def image_data_uri(path: Path) -> str:
+    if not path.exists():
+        return ""
+    encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+    return f"data:image/png;base64,{encoded}"
+
+
+def mascot_img(name: str, alt: str, class_name: str = "mascot-img") -> str:
+    uri = image_data_uri(MASCOTS[name])
+    if not uri:
+        return ""
+    return f'<img class="{class_name}" src="{uri}" alt="{html.escape(alt)}">'
 
 
 def inject_css() -> None:
     st.markdown(
         """
         <style>
-        .stApp { background: #f6f8fb; }
-        [data-testid="stSidebar"] { background: #101820; }
-        [data-testid="stSidebar"] * { color: #eef5f8; }
+        :root {
+            --lab-ink: #17313a;
+            --lab-muted: #5f7380;
+            --lab-panel: #ffffff;
+            --lab-mint: #e8f8f1;
+            --lab-teal: #0d7f72;
+            --lab-teal-dark: #075e59;
+            --lab-yellow: #f7c948;
+            --lab-line: #d6ebe3;
+        }
+        .stApp {
+            background:
+                linear-gradient(180deg, rgba(232,248,241,0.96), rgba(246,251,248,0.98) 38%, #f8fbfd 100%);
+            color: var(--lab-ink);
+        }
+        [data-testid="stSidebar"] {
+            background: linear-gradient(180deg, #0d2f35 0%, #123f44 55%, #0f2b33 100%);
+            border-right: 1px solid rgba(255,255,255,0.12);
+        }
+        [data-testid="stSidebar"] * { color: #eefaf7; }
         [data-testid="stSidebar"] [data-testid="stExpander"] {
-            background: #172632;
-            border: 1px solid #314656;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(198,244,229,0.24);
             border-radius: 8px;
         }
         [data-testid="stSidebar"] [data-testid="stExpander"] summary,
         [data-testid="stSidebar"] [data-testid="stExpander"] summary * {
-            color: #ff3b30 !important;
+            color: #ffffff !important;
         }
+        [data-testid="stMetric"] {
+            background: rgba(255,255,255,0.78);
+            border: 1px solid var(--lab-line);
+            border-radius: 8px;
+            padding: 12px 14px;
+            box-shadow: 0 10px 30px rgba(15, 61, 67, 0.06);
+        }
+        .block-container { padding-top: 28px; }
         .hero {
-            background: #101820;
+            position: relative;
+            overflow: hidden;
+            background:
+                linear-gradient(135deg, #0d4f53 0%, #118373 48%, #dff8ed 100%);
             color: #ffffff;
             border-radius: 8px;
-            padding: 22px 26px;
+            padding: 28px 30px;
             margin-bottom: 18px;
-            border: 1px solid #314656;
+            border: 1px solid rgba(255,255,255,0.28);
+            box-shadow: 0 22px 55px rgba(12, 92, 83, 0.20);
+            min-height: 230px;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 230px;
+            gap: 20px;
+            align-items: center;
         }
-        .hero h1 { margin: 0; font-size: 32px; letter-spacing: 0; }
-        .hero p { color: #c8d7df; margin: 8px 0 0; }
-        .pill {
+        .hero h1 { margin: 0; font-size: 38px; letter-spacing: 0; line-height: 1.06; }
+        .hero p { color: #e8fff8; margin: 10px 0 0; max-width: 760px; font-size: 16px; }
+        .hero-actions { margin-top: 18px; display: flex; gap: 10px; flex-wrap: wrap; }
+        .hero-chip {
             display: inline-block;
-            padding: 4px 9px;
+            padding: 7px 10px;
             border-radius: 999px;
-            background: #d7efe6;
-            color: #0e5f46;
+            background: rgba(255,255,255,0.16);
+            border: 1px solid rgba(255,255,255,0.24);
+            color: #ffffff;
             font-size: 12px;
             font-weight: 800;
-            margin-bottom: 10px;
+        }
+        .hero-mascot {
+            width: 210px;
+            height: 210px;
+            object-fit: contain;
+            border-radius: 8px;
+            background: rgba(244,251,248,0.88);
+            border: 1px solid rgba(255,255,255,0.45);
+            box-shadow: 0 14px 34px rgba(6, 62, 62, 0.20);
+        }
+        .pill {
+            display: inline-block;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: rgba(247,201,72,0.94);
+            color: #18323a;
+            font-size: 12px;
+            font-weight: 800;
+            margin-bottom: 12px;
         }
         .note {
-            border-left: 4px solid #0e7c66;
-            background: #ffffff;
-            padding: 10px 12px;
+            border-left: 4px solid var(--lab-teal);
+            background: rgba(255,255,255,0.86);
+            padding: 12px 14px;
             border-radius: 6px;
-            color: #334b5a;
+            color: #334b5a !important;
             margin: 8px 0 12px;
+            box-shadow: 0 10px 24px rgba(15, 61, 67, 0.05);
         }
         .dashboard-title {
-            font-size: 22px;
+            font-size: 26px;
             font-weight: 800;
-            color: #14232e;
+            color: var(--lab-ink);
             margin: 4px 0 2px;
         }
         .dashboard-subtle {
-            color: #526579;
+            color: var(--lab-muted);
             font-size: 14px;
             margin-bottom: 12px;
         }
         .status-strip {
-            background: #ffffff;
-            border: 1px solid #d9e2ea;
+            background: rgba(255,255,255,0.86);
+            border: 1px solid var(--lab-line);
             border-radius: 8px;
             padding: 12px 14px;
             margin: 10px 0 14px;
-            color: #243746;
+            color: #243746 !important;
+            box-shadow: 0 10px 24px rgba(15, 61, 67, 0.05);
         }
+        .agent-banner {
+            display: grid;
+            grid-template-columns: 92px minmax(0, 1fr);
+            gap: 14px;
+            align-items: center;
+            background: rgba(255,255,255,0.88);
+            border: 1px solid var(--lab-line);
+            border-radius: 8px;
+            padding: 14px;
+            margin: 6px 0 16px;
+            box-shadow: 0 14px 34px rgba(15, 61, 67, 0.06);
+        }
+        .agent-banner h3 { margin: 0; color: var(--lab-ink); font-size: 20px; }
+        .agent-banner p { margin: 4px 0 0; color: var(--lab-muted); font-size: 14px; }
+        .agent-badge {
+            display: inline-block;
+            margin-bottom: 4px;
+            padding: 3px 8px;
+            border-radius: 999px;
+            background: var(--lab-mint);
+            color: var(--lab-teal-dark);
+            font-weight: 800;
+            font-size: 11px;
+        }
+        .mascot-img {
+            width: 82px;
+            height: 82px;
+            object-fit: contain;
+            border-radius: 8px;
+            background: #f4fbf8;
+            border: 1px solid var(--lab-line);
+        }
+        .crew-grid {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(120px, 1fr));
+            gap: 12px;
+            margin: 14px 0 20px;
+        }
+        .crew-card {
+            background: rgba(255,255,255,0.84);
+            border: 1px solid var(--lab-line);
+            border-radius: 8px;
+            padding: 10px;
+            text-align: center;
+            box-shadow: 0 10px 26px rgba(15, 61, 67, 0.05);
+        }
+        .crew-card img {
+            width: 76px;
+            height: 76px;
+            object-fit: contain;
+            border-radius: 8px;
+            background: #f4fbf8;
+        }
+        .crew-card strong {
+            display: block;
+            color: var(--lab-ink);
+            margin-top: 6px;
+            font-size: 13px;
+        }
+        .crew-card span { color: var(--lab-muted); font-size: 12px; }
+        .lab-progress {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(130px, 1fr));
+            gap: 10px;
+            margin: 10px 0 18px;
+        }
+        .lab-step {
+            background: rgba(255,255,255,0.82);
+            border: 1px solid var(--lab-line);
+            border-radius: 8px;
+            padding: 10px 12px;
+            min-height: 80px;
+        }
+        .lab-step strong { color: var(--lab-ink); font-size: 13px; }
+        .lab-step span { color: var(--lab-muted); display: block; font-size: 12px; margin-top: 4px; }
         .side-flow {
             border-left: 2px solid #6fb7a1;
             padding-left: 10px;
@@ -114,6 +269,26 @@ def inject_css() -> None:
             padding: 2px 7px;
             margin-bottom: 4px;
         }
+        [data-testid="stFileUploader"] {
+            background: rgba(255,255,255,0.78);
+            border: 1px dashed #8ccfc0;
+            border-radius: 8px;
+            padding: 8px;
+        }
+        .stTabs [data-baseweb="tab-list"] { gap: 8px; }
+        .stTabs [data-baseweb="tab"] {
+            border-radius: 8px;
+            background: rgba(255,255,255,0.64);
+            border: 1px solid var(--lab-line);
+            padding: 8px 14px;
+        }
+        @media (max-width: 900px) {
+            .hero { grid-template-columns: 1fr; }
+            .hero-mascot { width: 160px; height: 160px; }
+            .crew-grid, .lab-progress { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
+            .agent-banner { grid-template-columns: 72px minmax(0, 1fr); }
+            .mascot-img { width: 64px; height: 64px; }
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -122,29 +297,89 @@ def inject_css() -> None:
 
 def render_header() -> None:
     st.markdown(
-        """
+        f"""
         <div class="hero">
-            <div class="pill">Bio Material Data Fractory</div>
-            <h1>Bio Material Harness</h1>
-            <p>Paper intake, duplicate screening, source extraction, material mapping, and training CSV updates for the BioMaterial platform.</p>
+            <div>
+                <div class="pill">Dr. Bio's Material Lab</div>
+                <h1>Turn research papers into ML-ready biomaterial data.</h1>
+                <p>Robo-Assist inspects the sample, Mixer extracts formulations, Scope checks the dataset, and Trainer packages clean training CSVs.</p>
+                <div class="hero-actions">
+                    <span class="hero-chip">Evidence-first extraction</span>
+                    <span class="hero-chip">Approved commands only</span>
+                    <span class="hero-chip">Online or Ollama mode</span>
+                </div>
+            </div>
+            <div>{mascot_img("dr_bio", "Dr. Bio", "hero-mascot")}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    render_lab_crew()
+
+
+def render_lab_crew() -> None:
+    crew = [
+        ("dr_bio", "Dr. Bio", "Lab guide"),
+        ("robo", "Robo-Assist", "Validation"),
+        ("mixer", "Mixer", "Formulations"),
+        ("scope", "Scope", "Data view"),
+        ("trainer", "Trainer", "ML exports"),
+    ]
+    cards = []
+    for key, name, role in crew:
+        cards.append(
+            f"""
+            <div class="crew-card">
+                {mascot_img(key, name)}
+                <strong>{html.escape(name)}</strong>
+                <span>{html.escape(role)}</span>
+            </div>
+            """
+        )
+    st.markdown(f'<div class="crew-grid">{"".join(cards)}</div>', unsafe_allow_html=True)
+
+
+def render_agent_banner(mascot: str, badge: str, title: str, body: str) -> None:
+    st.markdown(
+        f"""
+        <div class="agent-banner">
+            <div>{mascot_img(mascot, title)}</div>
+            <div>
+                <span class="agent-badge">{html.escape(badge)}</span>
+                <h3>{html.escape(title)}</h3>
+                <p>{html.escape(body)}</p>
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
 
+def render_lab_progress() -> None:
+    steps = [
+        ("Sample Inspection", "Robo-Assist checks relevance and duplicates."),
+        ("Formulation Mixing", "Mixer pulls materials, wt%, and process rows."),
+        ("Data Microscope", "Scope reviews relationships and coverage."),
+        ("Training Bay", "Trainer prepares forTrain CSV snapshots."),
+        ("Lab Console", "Dr. Bio answers and runs slash commands."),
+    ]
+    html_steps = "".join(
+        f'<div class="lab-step"><strong>{html.escape(title)}</strong><span>{html.escape(body)}</span></div>'
+        for title, body in steps
+    )
+    st.markdown(f'<div class="lab-progress">{html_steps}</div>', unsafe_allow_html=True)
+
+
 def render_sidebar_how_it_works() -> None:
-    with st.expander("How it works", expanded=False):
+    with st.expander("Lab protocol", expanded=False):
         st.markdown(
             """
             <div class="side-flow">
-                <div class="side-step"><span class="side-tag">1. Intake</span><br><strong>Upload paper</strong><br>Read PDF/text. OCR can help when text is weak.</div>
-                <div class="side-step"><span class="side-tag">2. Validation Agent</span><br><strong>Check qualification</strong><br>Reject invalid papers, non-biomaterial papers, prompt-injection text, and duplicates.</div>
-                <div class="side-step"><span class="side-tag">3. Supplement Check</span><br><strong>Find external data clues</strong><br>Shows Mendeley, Figshare, Zenodo, DOI, or supplementary links when tables may be outside the PDF.</div>
-                <div class="side-step"><span class="side-tag">4. Source Extraction</span><br><strong>Save paper metadata</strong><br>Only after real extraction succeeds: title, DOI, authors, summary, confidence, quality, conclusion.</div>
-                <div class="side-step"><span class="side-tag">5. Material Agent</span><br><strong>Normalize materials</strong><br>Reuse existing material IDs for same materials. Add new IDs only for new materials.</div>
-                <div class="side-step"><span class="side-tag">6. Formulation Agent</span><br><strong>Extract formulation/process rows</strong><br>Composition, wt%, roles, processing temperature, speed, feeding rate, time, and related evidence.</div>
-                <div class="side-step"><span class="side-tag">7. Training Builder</span><br><strong>Create forTrain rows</strong><br>Only measured property rows go into training CSVs. Process-only rows stay useful but are marked not training-ready.</div>
+                <div class="side-step"><span class="side-tag">Robo-Assist</span><br><strong>Sample inspection</strong><br>Reads PDF/text, checks qualification, duplicates, and prompt-injection text.</div>
+                <div class="side-step"><span class="side-tag">Mixer</span><br><strong>Formulation mixing</strong><br>Extracts materials, roles, wt%, processing settings, and property evidence.</div>
+                <div class="side-step"><span class="side-tag">Scope</span><br><strong>Data microscope</strong><br>Explores source papers, relationships, materials, and formulation coverage.</div>
+                <div class="side-step"><span class="side-tag">Trainer</span><br><strong>Training bay</strong><br>Builds and exports only measured-property training CSVs.</div>
+                <div class="side-step"><span class="side-tag">Dr. Bio</span><br><strong>Lab console</strong><br>Answers from CSV snapshots and runs explicit slash commands.</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -201,9 +436,15 @@ def render_supplementary_links(links: list[dict[str, str]]) -> None:
 
 
 def intake_tab() -> None:
-    st.header("Paper Validation Agent")
+    render_agent_banner(
+        "robo",
+        "Robo-Assist / Sample Inspection",
+        "Sample Intake",
+        "Drop in a research paper. Robo-Assist checks whether this sample belongs in the biomaterial lab before any CSV is touched.",
+    )
+    render_lab_progress()
     st.markdown(
-        '<div class="note">Upload a research paper first. The validation agent checks paper quality, biomaterial/formulation relevance, and duplicates before extraction runs.</div>',
+        '<div class="note">Upload a research paper first. The lab checks paper quality, biomaterial/formulation relevance, duplicates, and prompt-injection-like text before extraction runs.</div>',
         unsafe_allow_html=True,
     )
     uploaded = st.file_uploader("Upload research paper", type=["pdf", "txt", "md"])
@@ -266,7 +507,7 @@ def intake_tab() -> None:
 
     score = result.get("score", {})
     evidence = result.get("evidence", {})
-    st.success("Qualified unique biomaterial formulation paper.")
+    st.success("Robo-Assist approved this biomaterial formulation sample.")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Confidence", f"{score.get('confidence_percent', score.get('score', 0))}%")
     c2.metric("Paper quality", f"{score.get('quality_percent', 0)}%")
@@ -291,6 +532,12 @@ def intake_tab() -> None:
         st.success(f"Loaded supplementary evidence from {', '.join(supplementary_names)}.")
     combined_text = f"{text}{supplementary_text}"
     pipeline_key = f"{validation_key}:supp:{stable_hash(supplementary_text)}"
+    render_agent_banner(
+        "mixer",
+        "Mixer / Formulation Mixing",
+        "Ready for extraction",
+        "Mixer can now pull materials, formulation rows, process settings, and measured properties from the evidence.",
+    )
     st.caption("Validation complete. Run the extraction pipeline to save the source record, extract materials/formulations, update datasets, and regenerate forTrain.")
     if st.button("Run Extraction Pipeline", type="primary", use_container_width=True):
         try:
@@ -311,9 +558,9 @@ def intake_tab() -> None:
             st.session_state["last_pipeline_key"] = pipeline_key
             if material_extraction.get("applied"):
                 if material_extraction.get("training_ready"):
-                    st.success("Extraction pipeline complete. Source, datasets, and forTrain are updated.")
+                    st.success("Lab run complete. Source, datasets, and forTrain are updated.")
                 else:
-                    st.success("Formulation/process data extracted. Source and datasets are updated.")
+                    st.success("Mixer extracted formulation/process data. Source and datasets are updated.")
                     st.info("No measured property rows were found, so this paper is useful for material/formulation data but not for ML training CSVs yet.")
                 m1, m2, m3 = st.columns(3)
                 m1.metric("Extraction type", material_extraction.get("extraction_type", ""))
@@ -435,8 +682,12 @@ def chart_or_info(title: str, data: pd.DataFrame, index_col: str, value_col: str
 
 
 def datasets_tab() -> None:
-    st.markdown('<div class="dashboard-title">Data Overview</div>', unsafe_allow_html=True)
-    st.markdown('<div class="dashboard-subtle">Explore the local paper, material, formulation, component, and training CSVs from one place.</div>', unsafe_allow_html=True)
+    render_agent_banner(
+        "scope",
+        "Scope / Data Microscope",
+        "Microscope Bench",
+        "Zoom into source papers, material relationships, formulation coverage, and training readiness from one clean dashboard.",
+    )
     sources = list_validated_sources()
     formulations = read_table(FORMULATION_DATASET)
     components = read_table(FORMULATION_COMPONENTS)
@@ -467,7 +718,7 @@ def datasets_tab() -> None:
         unsafe_allow_html=True,
     )
 
-    overview, explorer, relationships, training, files = st.tabs(["Dashboard", "Explore Data", "Relationships", "Training", "Files"])
+    overview, explorer, relationships, training, files = st.tabs(["Lab Dashboard", "Data Drawers", "Microscope Links", "Training Bay", "Export Station"])
 
     with overview:
         left, right = st.columns([0.55, 0.45])
@@ -538,6 +789,12 @@ def datasets_tab() -> None:
                     searchable_table("Selected Components", comp_rows, ["component_id", "material_name", "role", "wt_percent", "source_evidence"], height=260)
 
     with training:
+        render_agent_banner(
+            "trainer",
+            "Trainer / ML Readiness",
+            "Training Bay",
+            "Trainer flexes only when measured properties are present and ready for model-building CSVs.",
+        )
         st.subheader("Training File Inventory")
         st.dataframe(train_df, hide_index=True, use_container_width=True)
         selected_property = st.selectbox("Preview property dataset", train_df["property"].tolist() if not train_df.empty else [])
@@ -553,6 +810,12 @@ def datasets_tab() -> None:
             searchable_table(f"{selected_property} Training Rows", read_table(preview_source), height=340)
 
     with files:
+        render_agent_banner(
+            "trainer",
+            "Trainer / Export Station",
+            "Approved Data Bundles",
+            "Create read-only ZIP snapshots for training, datasets, or audits without changing the lab records.",
+        )
         st.subheader("Export")
         export_cols = st.columns(3)
         train_zip = export_fortrain_zip()
@@ -735,7 +998,7 @@ def question_mentions_export(question: str) -> bool:
 
 def export_answer() -> str:
     return (
-        "Exports are available in `Data Overview` -> `Files`.\n\n"
+        "Exports are available in `Microscope Bench` -> `Export Station`.\n\n"
         "- `Download forTrain ZIP` gives only ML training CSVs from the `forTrain` folder.\n"
         "- `Download dataset ZIP` gives source, material, formulation, component, and mapping CSV/XLSX files.\n"
         "- `Download audit bundle ZIP` gives datasets plus validation, rejection, applied-run logs, and forTrain CSVs.\n\n"
@@ -836,8 +1099,12 @@ def render_assistant_message(message: dict[str, object]) -> None:
 
 
 def dataset_assistant_tab() -> None:
-    st.markdown('<div class="dashboard-title">Harness Assistant</div>', unsafe_allow_html=True)
-    st.markdown('<div class="dashboard-subtle">Ask about current CSV data, or type `/` to see approved harness commands.</div>', unsafe_allow_html=True)
+    render_agent_banner(
+        "dr_bio",
+        "Dr. Bio / Lab Console",
+        "Harness Assistant",
+        "Ask about current CSV data, recent rejections, training readiness, or type `/` to see approved lab commands.",
+    )
     st.info("Normal chat is read-only. Only explicit slash commands can run approved actions.")
 
     context = dataset_assistant_context()
@@ -958,22 +1225,23 @@ def apply_model_mode_from_sidebar() -> None:
 
 
 def main() -> None:
-    st.set_page_config(page_title=APP_TITLE, page_icon="MS", layout="wide")
+    st.set_page_config(page_title=APP_TITLE, page_icon=str(MASCOTS["dr_bio"]), layout="wide")
     apply_streamlit_secrets()
     inject_css()
     render_header()
 
     with st.sidebar:
-        st.title("BIO Material Harness")
-        st.caption("Validate papers, extract formulations, and build training CSVs.")
+        st.image(str(MASCOTS["dr_bio"]), use_container_width=True)
+        st.title("Dr. Bio's Lab")
+        st.caption("Validate samples, mix formulations, and package training CSVs.")
         st.markdown("---")
-        st.metric("Extracted papers", len(list_applied_reviews()))
+        st.metric("Completed lab runs", len(list_applied_reviews()))
         render_sidebar_model_mode()
         apply_model_mode_from_sidebar()
         st.markdown("---")
         render_sidebar_how_it_works()
 
-    tab1, tab2, tab3 = st.tabs(["Paper Intake", "Data Overview", "Harness Assistant"])
+    tab1, tab2, tab3 = st.tabs(["Sample Intake", "Microscope Bench", "Lab Console"])
     with tab1:
         intake_tab()
     with tab2:
