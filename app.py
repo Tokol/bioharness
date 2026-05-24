@@ -147,6 +147,7 @@ def render_sidebar_how_it_works() -> None:
 
 def render_loaded_extensions() -> None:
     extensions = list_harness_extensions()
+    app_dir = Path(__file__).resolve().parent
     with st.expander("Loaded extensions", expanded=False):
         if not extensions:
             st.caption("No local skills found.")
@@ -155,7 +156,11 @@ def render_loaded_extensions() -> None:
             st.markdown(f"**{extension.name}**")
             if extension.summary:
                 st.caption(extension.summary)
-            st.caption(f"`{extension.path.relative_to(Path(__file__).parent)}`")
+            try:
+                display_path = extension.path.resolve().relative_to(app_dir)
+            except ValueError:
+                display_path = extension.path
+            st.caption(f"`{display_path}`")
 
 
 def save_uploaded_file(uploaded) -> Path:
