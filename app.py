@@ -9,7 +9,6 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from extension_loader import list_harness_extensions
 from harness_config import APPLIED_LOG, EXTRACTED_SOURCE_CSV, EXTRACTED_SOURCE_XLSX, FORMULATION_COMPONENTS, FOR_TRAIN_DIR, FORMULATION_DATASET, MATERIAL_LIBRARY, MATERIAL_NAME_MAPPING, OPENAI_KEY_FILE, PROPERTY_TARGETS, REJECTION_LOG, UPLOAD_DIR, VALIDATION_LOG
 from harness_core import (
     LLM_PROVIDER_ENV,
@@ -143,24 +142,6 @@ def render_sidebar_how_it_works() -> None:
             unsafe_allow_html=True,
         )
         st.caption("Rule: no evidence-backed material/formulation data means no CSV update.")
-
-
-def render_loaded_extensions() -> None:
-    extensions = list_harness_extensions()
-    app_dir = Path(__file__).resolve().parent
-    with st.expander("Loaded extensions", expanded=False):
-        if not extensions:
-            st.caption("No local skills found.")
-            return
-        for extension in extensions:
-            st.markdown(f"**{extension.name}**")
-            if extension.summary:
-                st.caption(extension.summary)
-            try:
-                display_path = extension.path.resolve().relative_to(app_dir)
-            except ValueError:
-                display_path = extension.path
-            st.caption(f"`{display_path}`")
 
 
 def save_uploaded_file(uploaded) -> Path:
@@ -962,8 +943,6 @@ def main() -> None:
         st.metric("Extracted papers", len(list_applied_reviews()))
         render_sidebar_model_mode()
         apply_model_mode_from_sidebar()
-        st.markdown("---")
-        render_loaded_extensions()
         st.markdown("---")
         render_sidebar_how_it_works()
 
