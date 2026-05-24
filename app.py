@@ -93,6 +93,11 @@ def inject_css() -> None:
             padding: 12px 14px;
             box-shadow: 0 10px 30px rgba(15, 61, 67, 0.06);
         }
+        [data-testid="stSidebar"] [data-testid="stMetric"] *,
+        [data-testid="stSidebar"] [data-testid="stMetric"] label,
+        [data-testid="stSidebar"] [data-testid="stMetric"] div {
+            color: var(--lab-ink) !important;
+        }
         .block-container { padding-top: 28px; }
         .hero {
             position: relative;
@@ -325,18 +330,12 @@ def render_lab_crew() -> None:
         ("scope", "Scope", "Data view"),
         ("trainer", "Trainer", "ML exports"),
     ]
-    cards = []
-    for key, name, role in crew:
-        cards.append(
-            f"""
-            <div class="crew-card">
-                {mascot_img(key, name)}
-                <strong>{html.escape(name)}</strong>
-                <span>{html.escape(role)}</span>
-            </div>
-            """
-        )
-    st.markdown(f'<div class="crew-grid">{"".join(cards)}</div>', unsafe_allow_html=True)
+    cols = st.columns(len(crew))
+    for col, (key, name, role) in zip(cols, crew):
+        with col:
+            st.image(str(MASCOTS[key]), width=76)
+            st.markdown(f"**{name}**")
+            st.caption(role)
 
 
 def render_agent_banner(mascot: str, badge: str, title: str, body: str) -> None:
