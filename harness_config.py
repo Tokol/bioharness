@@ -19,6 +19,7 @@ VALIDATION_LOG = VALIDATION_DIR / "validation_log.csv"
 REJECTION_LOG = VALIDATION_DIR / "rejected_papers.csv"
 FOR_TRAIN_DIR = BASE_DIR / "forTrain"
 OPENAI_KEY_FILE = BASE_DIR / "openai_key.txt"
+SKILLS_DIR = BASE_DIR / "skills"
 
 MATERIAL_PROJECT_DIR = LOCAL_DATASET_DIR
 

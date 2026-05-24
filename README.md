@@ -32,6 +32,7 @@ Bio Material Harness helps collect biomaterial formulation data without blindly 
 - Generate local training CSVs under `forTrain/`.
 - Provide a read-only Dataset Assistant for questions about current CSV data.
 - Export dataset, training, or audit bundles as ZIP files.
+- Load local domain skills from the `skills/` folder as extension metadata.
 
 ## Why
 
@@ -249,6 +250,18 @@ It uses a staged harness rather than an unconstrained chatbot. The agent roles a
 
 The harness decides when data can be saved. The model proposes structured JSON, but CSV mutation is guarded by code.
 
+## Extension Point
+
+The harness includes a local skill extension:
+
+```text
+skills/biomaterial_extraction/SKILL.md
+```
+
+At startup, the app loads `SKILL.md` metadata from `skills/*/` and shows the loaded extension in the sidebar. This is the project equivalent of a skill system: the extension describes the domain rules used by the harness while the core Python code keeps execution, validation, and CSV writes under guardrails.
+
+Skill files are read as metadata only. They are not executed as Python, shell commands, or dynamic plugins.
+
 ## Inspiration Features
 
 ### Offline
@@ -310,7 +323,7 @@ This harness reads files, processes untrusted paper text, calls LLMs, and writes
 - **Shell execution:** the app does not expose shell execution to the model or Dataset Assistant.
 - **Prompt injection:** paper text is treated as untrusted evidence; injection-like text is detected; extraction ignores references, background, metadata tags, and author instructions.
 - **Secrets:** `OPENAI_API_KEY` or `openai_key.txt` is never included in assistant context or export bundles, and key files are ignored by git.
-- **Untrusted MCP/skills:** this app does not load MCP servers or dynamic skills.
+- **Untrusted MCP/skills:** the app loads local `SKILL.md` files as read-only metadata only; it does not execute skill code or connect to MCP servers.
 - **Supplementary uploads:** ZIP parsing is limited to CSV/XLS/XLSX, large members are skipped, supplementary text is capped, and rows are saved only after evidence-backed extraction.
 - **Read-only assistant:** the assistant only receives CSV-derived context and has no write, delete, export-trigger, or extraction functions.
 
