@@ -373,11 +373,11 @@ def render_header() -> None:
 
 def render_lab_crew() -> None:
     crew = [
-        ("dr_bio", "Dr. Bio", "Lab guide"),
-        ("robo", "Robo-Assist", "Validation"),
-        ("mixer", "Mixer", "Formulations"),
-        ("scope", "Scope", "Data view"),
-        ("trainer", "Trainer", "ML exports"),
+        ("dr_bio", "Dr. Bio", "Guide + commands"),
+        ("robo", "Robo-Assist", "Paper validator"),
+        ("mixer", "Mixer", "Extraction agent"),
+        ("scope", "Scope", "Data examiner"),
+        ("trainer", "Trainer", "ML packager"),
     ]
     cards = []
     for key, name, role in crew:
@@ -426,12 +426,12 @@ def render_sidebar_how_it_works() -> None:
     st.markdown(
         """
         <div class="lab-protocol">
-            <div class="lab-protocol-title">Lab protocol</div>
-            <div class="protocol-card"><strong>Robo-Assist</strong><p>Inspects papers, relevance, duplicates, and prompt-injection-like text.</p></div>
-            <div class="protocol-card"><strong>Mixer</strong><p>Extracts materials, wt%, process settings, and property evidence.</p></div>
-            <div class="protocol-card"><strong>Scope</strong><p>Shows papers, relationships, materials, and formulation coverage.</p></div>
-            <div class="protocol-card"><strong>Trainer</strong><p>Builds and exports only measured-property training CSVs.</p></div>
-            <div class="protocol-card"><strong>Dr. Bio</strong><p>Answers from CSV snapshots and runs explicit slash commands.</p></div>
+            <div class="lab-protocol-title">Agent crew</div>
+            <div class="protocol-card"><strong>Robo-Assist - Validator</strong><p>Checks paper quality, biomaterial relevance, duplicates, and prompt-injection-like text.</p></div>
+            <div class="protocol-card"><strong>Mixer - Extractor</strong><p>Extracts materials, formulation rows, wt%, process settings, and property evidence.</p></div>
+            <div class="protocol-card"><strong>Scope - Dataset examiner</strong><p>Reviews papers, relationships, material coverage, and training readiness.</p></div>
+            <div class="protocol-card"><strong>Trainer - ML packager</strong><p>Builds and exports measured-property CSV bundles for downstream ML preparation.</p></div>
+            <div class="protocol-card"><strong>Dr. Bio - Console guide</strong><p>Explains CSV snapshots and runs only explicit approved slash commands.</p></div>
         </div>
         """,
         unsafe_allow_html=True,
