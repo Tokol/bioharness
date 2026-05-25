@@ -15,6 +15,39 @@ research paper + optional supplementary tables
         -> read-only dataset assistant
 ```
 
+## Presentation And Demo Evidence
+
+View the presentation here:
+
+https://tokol.github.io/haness_present/
+
+Presentation controls:
+
+- Press `F` to enter full screen.
+- Press `Esc` to exit full screen.
+- Press the right arrow key (`->`) to move to the next slide.
+- Press the left arrow key (`<-`) to move to the previous slide.
+- Click any screenshot/image in the slides to view it enlarged inside the presentation.
+- Press `Esc` or click outside the enlarged image to close it.
+
+The screenshots below show the working app flow used as presentation evidence.
+
+![Home page](images/screenshots/1_Home_page.png)
+
+![Paper upload](images/screenshots/2_upload_paper.png)
+
+![Unrelated paper rejected](images/screenshots/3_unreleated_paper_rejected.png)
+
+![Valid biomaterial paper accepted](images/screenshots/4_valid_bio_paper_accepted_detect_formulations.png)
+
+![Extraction successful](images/screenshots/6_extraction_sucesfull.png)
+
+![Dataset overview](images/screenshots/7_data_overview_total_9papers.png)
+
+![Harness assistant question](images/screenshots/9_harness_Assistant_canask_related_todata.png)
+
+![Approved command response](images/screenshots/12_command_Respond.png)
+
 ## Architecture
 
 The harness is layered so the LLM is never the only authority. The UI, validation gates, extraction agents, CSV writers, logs, export commands, and assistant have separate responsibilities.
