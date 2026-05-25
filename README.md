@@ -1,5 +1,7 @@
 # Dr. Bio's Material Lab
 
+Current codebase repo: [Tokol/bioharness](https://github.com/Tokol/bioharness)
+
 Live app: https://bioharness.streamlit.app/
 
 Dr. Bio's Material Lab is a secure agent harness for turning biomaterial research papers into structured CSV datasets for machine-learning work. It validates uploaded papers, rejects irrelevant or unsafe inputs, extracts evidence-backed material/formulation data, and exports training-ready CSV bundles.
@@ -218,7 +220,7 @@ Accepted limits:
 
 ## Deliverables Covered
 
-- Working harness code in this repo.
+- Working harness code in this repo: [Tokol/bioharness](https://github.com/Tokol/bioharness).
 - Local extension specs in `skills/`.
 - README with install instructions and security discussion.
 - Presentation document with screenshots and workflow explanation: https://tokol.github.io/haness_present/
