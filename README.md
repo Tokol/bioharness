@@ -221,6 +221,7 @@ Accepted limits:
 - Working harness code in this repo.
 - Local extension specs in `skills/`.
 - README with install instructions and security discussion.
+- Presentation document with screenshots and workflow explanation: https://tokol.github.io/haness_present/
 - Screenshots/architecture figures in `images/`.
 - Approved command layer in `harness_commands.py`.
 - Live Streamlit app link above.
