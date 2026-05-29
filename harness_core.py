@@ -291,7 +291,7 @@ def active_llm_label(default_model: str = OPENAI_METADATA_MODEL) -> str:
 
 
 def load_source_table() -> pd.DataFrame:
-    return read_table(EXTRACTED_SOURCE_XLSX)
+    return read_table(EXTRACTED_SOURCE_XLSX if EXTRACTED_SOURCE_XLSX.exists() else EXTRACTED_SOURCE_CSV)
 
 
 def normalize_doi(value: object) -> str:
@@ -906,7 +906,7 @@ def source_record_from_metadata(metadata: dict[str, Any], score: int, quality_sc
 
 def append_validated_source_record(record: dict[str, Any]) -> bool:
     EXTRACTED_SOURCE_XLSX.parent.mkdir(parents=True, exist_ok=True)
-    existing = read_table(EXTRACTED_SOURCE_XLSX)
+    existing = load_source_table()
     row = {col: clean(record.get(col)) for col in SOURCE_RECORD_COLUMNS}
     if existing.empty:
         extracted = pd.DataFrame([row], columns=SOURCE_RECORD_COLUMNS)
@@ -1099,7 +1099,7 @@ def validate_paper_upload(file_name: str, text: str) -> dict[str, Any]:
 
 
 def list_validated_sources() -> pd.DataFrame:
-    return read_table(EXTRACTED_SOURCE_XLSX)
+    return load_source_table()
 
 
 def run_source_extraction(validation_result: dict[str, Any]) -> dict[str, Any]:

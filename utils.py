@@ -73,6 +73,12 @@ def write_table(df: pd.DataFrame, path: Path) -> None:
         df.to_excel(path, index=False)
     else:
         df.to_csv(path, index=False)
+        try:
+            from drive_storage import upload_csv
+
+            upload_csv(path)
+        except Exception:
+            pass
 
 
 def table_to_evidence_text(df: pd.DataFrame, label: str, max_rows: int = SUPPLEMENTARY_MAX_ROWS) -> str:
