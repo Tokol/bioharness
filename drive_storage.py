@@ -23,6 +23,11 @@ from harness_config import (
 
 
 DRIVE_SYNC_DISABLED_ENV = "BIOMATERIAL_DISABLE_DRIVE_SYNC"
+SERVICE_ACCOUNT_JSON_SECRET_NAMES = [
+    "GCP_SERVICE_ACCOUNT_JSON",
+    "GOOGLE_SERVICE_ACCOUNT_JSON",
+    "gcp_service_account_json",
+]
 LAST_STATUS: dict[str, Any] = {
     "configured": False,
     "last_upload_path": "",
@@ -99,6 +104,15 @@ def _streamlit_secret(name: str, default: Any = "") -> Any:
         return default
 
 
+def _streamlit_secret_keys() -> tuple[list[str], str]:
+    try:
+        import streamlit as st
+
+        return sorted([str(key) for key in st.secrets.keys()]), ""
+    except Exception as exc:
+        return [], str(exc)
+
+
 def drive_configured() -> bool:
     return bool(get_drive_folder_id() and get_service_account_info())
 
@@ -108,12 +122,14 @@ def get_drive_folder_id() -> str:
 
 
 def get_service_account_info() -> dict[str, Any]:
-    raw_json = _streamlit_secret("GCP_SERVICE_ACCOUNT_JSON", "")
-    if raw_json:
+    for secret_name in SERVICE_ACCOUNT_JSON_SECRET_NAMES:
+        raw_json = _streamlit_secret(secret_name, "")
+        if not raw_json:
+            continue
         try:
             return json.loads(str(raw_json))
-        except json.JSONDecodeError:
-            LAST_STATUS["last_error"] = "GCP_SERVICE_ACCOUNT_JSON is not valid JSON."
+        except json.JSONDecodeError as exc:
+            LAST_STATUS["last_error"] = f"{secret_name} is present but is not valid JSON: {exc}"
             return {}
     try:
         info = _streamlit_secret("gcp_service_account", {})
@@ -122,6 +138,20 @@ def get_service_account_info() -> dict[str, Any]:
     except Exception:
         pass
     return {}
+
+
+def config_diagnostics() -> dict[str, Any]:
+    keys, keys_error = _streamlit_secret_keys()
+    service_table = _streamlit_secret("gcp_service_account", {})
+    json_secret_names = [name for name in SERVICE_ACCOUNT_JSON_SECRET_NAMES if _streamlit_secret(name, "")]
+    return {
+        "folder_id_present": bool(get_drive_folder_id()),
+        "service_account_table_present": bool(service_table),
+        "json_secret_names_present": json_secret_names,
+        "top_level_secret_names": keys,
+        "secret_read_error": keys_error,
+        "last_error": LAST_STATUS.get("last_error", ""),
+    }
 
 
 def _drive_service():

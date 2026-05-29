@@ -9,7 +9,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from drive_storage import drive_configured, last_status as drive_last_status, missing_config_labels as drive_missing_config_labels, rebuild_source_xlsx_from_csv, sync_from_drive
+from drive_storage import config_diagnostics as drive_config_diagnostics, drive_configured, last_status as drive_last_status, missing_config_labels as drive_missing_config_labels, rebuild_source_xlsx_from_csv, sync_from_drive
 from harness_commands import COMMAND_OUTPUTS, approved_command_catalog, export_audit_bundle_zip, export_dataset_zip, export_fortrain_zip, run_approved_command
 from harness_config import EXTRACTED_SOURCE_CSV, EXTRACTED_SOURCE_XLSX, FORMULATION_COMPONENTS, FOR_TRAIN_DIR, FORMULATION_DATASET, MATERIAL_LIBRARY, MATERIAL_NAME_MAPPING, OPENAI_KEY_FILE, PROPERTY_TARGETS, REJECTION_LOG, UPLOAD_DIR
 from harness_core import (
@@ -1367,6 +1367,8 @@ def main() -> None:
             missing_drive_config = drive_missing_config_labels()
             if missing_drive_config:
                 st.caption(f"Missing: {', '.join(missing_drive_config)}")
+                with st.expander("Drive config diagnostics"):
+                    st.json(drive_config_diagnostics())
         render_sidebar_model_mode()
         apply_model_mode_from_sidebar()
         st.markdown("---")
