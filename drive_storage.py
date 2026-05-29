@@ -127,7 +127,7 @@ def get_service_account_info() -> dict[str, Any]:
         if not raw_json:
             continue
         try:
-            return json.loads(str(raw_json))
+            return json.loads(str(raw_json), strict=False)
         except json.JSONDecodeError as exc:
             LAST_STATUS["last_error"] = f"{secret_name} is present but is not valid JSON: {exc}"
             return {}
