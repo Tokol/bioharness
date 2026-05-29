@@ -37,7 +37,18 @@ class DriveSyncError(RuntimeError):
 def last_status() -> dict[str, Any]:
     status = dict(LAST_STATUS)
     status["configured"] = drive_configured()
+    status["has_folder_id"] = bool(get_drive_folder_id())
+    status["has_service_account"] = bool(get_service_account_info())
     return status
+
+
+def missing_config_labels() -> list[str]:
+    missing = []
+    if not get_drive_folder_id():
+        missing.append("GOOGLE_DRIVE_FOLDER_ID")
+    if not get_service_account_info():
+        missing.append("[gcp_service_account]")
+    return missing
 
 
 def _remember_upload(path: Path) -> None:
