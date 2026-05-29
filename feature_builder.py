@@ -263,8 +263,8 @@ def regenerate_feature_csvs(material_project_dir: Path | None = None, training_d
                 features[col] = ""
         features = features[FEATURE_COLUMNS]
         output_path = formulation_path.parent / filename
-        features.to_csv(output_path, index=False)
-        features.to_csv(train_dir / filename, index=False)
+        write_table(features, output_path)
+        write_table(features, train_dir / filename)
         result[filename] = len(features)
     return result
 
