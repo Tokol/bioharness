@@ -5,6 +5,8 @@ __pycache__/
 .idea/
 *.zip
 openai_key.txt
+*service-account*.json
+materialdata-*.json
 Elicit - Natural Fiber Bio-Based Composite Data Sources - readable table.xlsx
 
 data/uploads/*

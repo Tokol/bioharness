@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import json
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -47,7 +48,7 @@ def missing_config_labels() -> list[str]:
     if not get_drive_folder_id():
         missing.append("GOOGLE_DRIVE_FOLDER_ID")
     if not get_service_account_info():
-        missing.append("[gcp_service_account]")
+        missing.append("[gcp_service_account] or GCP_SERVICE_ACCOUNT_JSON")
     return missing
 
 
@@ -107,6 +108,13 @@ def get_drive_folder_id() -> str:
 
 
 def get_service_account_info() -> dict[str, Any]:
+    raw_json = _streamlit_secret("GCP_SERVICE_ACCOUNT_JSON", "")
+    if raw_json:
+        try:
+            return json.loads(str(raw_json))
+        except json.JSONDecodeError:
+            LAST_STATUS["last_error"] = "GCP_SERVICE_ACCOUNT_JSON is not valid JSON."
+            return {}
     try:
         info = _streamlit_secret("gcp_service_account", {})
         if info:
