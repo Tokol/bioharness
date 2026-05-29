@@ -9,7 +9,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from drive_storage import drive_configured, rebuild_source_xlsx_from_csv, sync_from_drive
+from drive_storage import drive_configured, last_status as drive_last_status, rebuild_source_xlsx_from_csv, sync_from_drive
 from harness_commands import COMMAND_OUTPUTS, approved_command_catalog, export_audit_bundle_zip, export_dataset_zip, export_fortrain_zip, run_approved_command
 from harness_config import EXTRACTED_SOURCE_CSV, EXTRACTED_SOURCE_XLSX, FORMULATION_COMPONENTS, FOR_TRAIN_DIR, FORMULATION_DATASET, MATERIAL_LIBRARY, MATERIAL_NAME_MAPPING, OPENAI_KEY_FILE, PROPERTY_TARGETS, REJECTION_LOG, UPLOAD_DIR
 from harness_core import (
@@ -1352,11 +1352,16 @@ def main() -> None:
         st.markdown("---")
         st.metric("Exported papers", len(list_applied_reviews()))
         drive_status = st.session_state.get("drive_storage_status", {})
+        current_drive_status = drive_last_status()
         if drive_status.get("configured"):
-            if drive_status.get("error"):
+            if drive_status.get("error") or current_drive_status.get("last_error"):
                 st.warning("Google Drive storage needs attention.")
+                with st.expander("Drive sync detail"):
+                    st.write(drive_status.get("error") or current_drive_status.get("last_error"))
             else:
                 st.caption(f"Google Drive CSV storage active. Loaded {drive_status.get('downloaded', 0)} files.")
+                if current_drive_status.get("last_upload_path"):
+                    st.caption(f"Last Drive upload: {current_drive_status['last_upload_path']}")
         else:
             st.caption("Google Drive CSV storage is not configured.")
         render_sidebar_model_mode()

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +22,37 @@ from harness_config import (
 
 
 DRIVE_SYNC_DISABLED_ENV = "BIOMATERIAL_DISABLE_DRIVE_SYNC"
+LAST_STATUS: dict[str, Any] = {
+    "configured": False,
+    "last_upload_path": "",
+    "last_upload_at": "",
+    "last_error": "",
+}
+
+
+class DriveSyncError(RuntimeError):
+    pass
+
+
+def last_status() -> dict[str, Any]:
+    status = dict(LAST_STATUS)
+    status["configured"] = drive_configured()
+    return status
+
+
+def _remember_upload(path: Path) -> None:
+    LAST_STATUS.update(
+        {
+            "configured": True,
+            "last_upload_path": relative_drive_path(path),
+            "last_upload_at": datetime.now().isoformat(timespec="seconds"),
+            "last_error": "",
+        }
+    )
+
+
+def _remember_error(exc: Exception) -> None:
+    LAST_STATUS["last_error"] = str(exc)
 
 
 def managed_csv_paths() -> list[Path]:
@@ -114,24 +146,29 @@ def _parent_for_relative_path(service: Any, root_folder_id: str, rel_path: str) 
 
 
 def upload_csv(path: Path) -> bool:
-    if os.environ.get(DRIVE_SYNC_DISABLED_ENV) == "1" or path.suffix.lower() != ".csv" or not path.exists():
-        return False
-    if not drive_configured():
-        return False
-    from googleapiclient.http import MediaFileUpload
+    try:
+        if os.environ.get(DRIVE_SYNC_DISABLED_ENV) == "1" or path.suffix.lower() != ".csv" or not path.exists():
+            return False
+        if not drive_configured():
+            return False
+        from googleapiclient.http import MediaFileUpload
 
-    service = _drive_service()
-    root_folder_id = get_drive_folder_id()
-    rel_path = relative_drive_path(path)
-    parent_id = _parent_for_relative_path(service, root_folder_id, rel_path)
-    file_name = Path(rel_path).name
-    media = MediaFileUpload(str(path), mimetype="text/csv", resumable=False)
-    existing_id = _find_child(service, parent_id, file_name)
-    if existing_id:
-        service.files().update(fileId=existing_id, media_body=media, fields="id", supportsAllDrives=True).execute()
-    else:
-        service.files().create(body={"name": file_name, "parents": [parent_id]}, media_body=media, fields="id", supportsAllDrives=True).execute()
-    return True
+        service = _drive_service()
+        root_folder_id = get_drive_folder_id()
+        rel_path = relative_drive_path(path)
+        parent_id = _parent_for_relative_path(service, root_folder_id, rel_path)
+        file_name = Path(rel_path).name
+        media = MediaFileUpload(str(path), mimetype="text/csv", resumable=False)
+        existing_id = _find_child(service, parent_id, file_name)
+        if existing_id:
+            service.files().update(fileId=existing_id, media_body=media, fields="id", supportsAllDrives=True).execute()
+        else:
+            service.files().create(body={"name": file_name, "parents": [parent_id]}, media_body=media, fields="id", supportsAllDrives=True).execute()
+        _remember_upload(path)
+        return True
+    except Exception as exc:
+        _remember_error(exc)
+        raise DriveSyncError(f"Google Drive upload failed for {relative_drive_path(path)}: {exc}") from exc
 
 
 def download_csv(path: Path) -> bool:

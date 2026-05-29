@@ -78,6 +78,8 @@ def write_table(df: pd.DataFrame, path: Path) -> None:
 
             upload_csv(path)
         except Exception:
+            # The Streamlit UI surfaces the latest Drive sync error; local CSV writes
+            # should still succeed if remote persistence is misconfigured.
             pass
 
 
