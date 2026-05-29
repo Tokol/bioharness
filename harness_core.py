@@ -14,6 +14,7 @@ from typing import Any
 import pandas as pd
 
 from feature_builder import ensure_training_scaffold, regenerate_feature_csvs
+from drive_storage import upload_csv
 from harness_config import (
     APPLIED_DIR,
     APPLIED_LOG,
@@ -1797,6 +1798,11 @@ def archive_review_package(review_id: str, result: dict[str, Any]) -> None:
         if target.exists():
             target.unlink()
         shutil.move(str(path), str(target))
+        if target.suffix.lower() == ".csv":
+            try:
+                upload_csv(target)
+            except Exception:
+                pass
 
 
 def formulation_signature(row: pd.Series) -> str:
