@@ -5,8 +5,10 @@ import json
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 import pandas as pd
+import requests
 
 from harness_config import (
     APPLIED_LOG,
@@ -30,6 +32,7 @@ SERVICE_ACCOUNT_JSON_SECRET_NAMES = [
 ]
 LAST_STATUS: dict[str, Any] = {
     "configured": False,
+    "backend": "",
     "last_upload_path": "",
     "last_upload_at": "",
     "last_error": "",
@@ -40,27 +43,44 @@ class DriveSyncError(RuntimeError):
     pass
 
 
+class RemoteStorageError(RuntimeError):
+    pass
+
+
 def last_status() -> dict[str, Any]:
     status = dict(LAST_STATUS)
-    status["configured"] = drive_configured()
+    status["configured"] = remote_storage_configured()
+    status["backend"] = active_backend()
+    status["has_supabase_url"] = bool(get_supabase_url())
+    status["has_supabase_key"] = bool(get_supabase_key())
+    status["has_supabase_bucket"] = bool(get_supabase_bucket())
     status["has_folder_id"] = bool(get_drive_folder_id())
     status["has_service_account"] = bool(get_service_account_info())
     return status
 
 
 def missing_config_labels() -> list[str]:
+    if supabase_configured() or drive_configured():
+        return []
+    if get_supabase_url() or get_supabase_key() or get_supabase_bucket():
+        missing = []
+        if not get_supabase_url():
+            missing.append("SUPABASE_URL")
+        if not get_supabase_key():
+            missing.append("SUPABASE_SERVICE_ROLE_KEY")
+        if not get_supabase_bucket():
+            missing.append("SUPABASE_BUCKET")
+        return missing
     missing = []
-    if not get_drive_folder_id():
-        missing.append("GOOGLE_DRIVE_FOLDER_ID")
-    if not get_service_account_info():
-        missing.append("[gcp_service_account] or GCP_SERVICE_ACCOUNT_JSON")
+    missing.extend(["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_BUCKET"])
     return missing
 
 
-def _remember_upload(path: Path) -> None:
+def _remember_upload(path: Path, backend: str) -> None:
     LAST_STATUS.update(
         {
             "configured": True,
+            "backend": backend,
             "last_upload_path": relative_drive_path(path),
             "last_upload_at": datetime.now().isoformat(timespec="seconds"),
             "last_error": "",
@@ -117,6 +137,39 @@ def drive_configured() -> bool:
     return bool(get_drive_folder_id() and get_service_account_info())
 
 
+def supabase_configured() -> bool:
+    return bool(get_supabase_url() and get_supabase_key() and get_supabase_bucket())
+
+
+def remote_storage_configured() -> bool:
+    return supabase_configured() or drive_configured()
+
+
+def active_backend() -> str:
+    if supabase_configured():
+        return "Supabase"
+    if drive_configured():
+        return "Google Drive"
+    return ""
+
+
+def get_supabase_url() -> str:
+    return str(os.environ.get("SUPABASE_URL") or _streamlit_secret("SUPABASE_URL", "")).strip().rstrip("/")
+
+
+def get_supabase_key() -> str:
+    return str(
+        os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+        or _streamlit_secret("SUPABASE_SERVICE_ROLE_KEY", "")
+        or os.environ.get("SUPABASE_KEY")
+        or _streamlit_secret("SUPABASE_KEY", "")
+    ).strip()
+
+
+def get_supabase_bucket() -> str:
+    return str(os.environ.get("SUPABASE_BUCKET") or _streamlit_secret("SUPABASE_BUCKET", "")).strip()
+
+
 def get_drive_folder_id() -> str:
     return str(os.environ.get("GOOGLE_DRIVE_FOLDER_ID") or _streamlit_secret("GOOGLE_DRIVE_FOLDER_ID", "")).strip()
 
@@ -145,6 +198,10 @@ def config_diagnostics() -> dict[str, Any]:
     service_table = _streamlit_secret("gcp_service_account", {})
     json_secret_names = [name for name in SERVICE_ACCOUNT_JSON_SECRET_NAMES if _streamlit_secret(name, "")]
     return {
+        "active_backend": active_backend(),
+        "supabase_url_present": bool(get_supabase_url()),
+        "supabase_key_present": bool(get_supabase_key()),
+        "supabase_bucket_present": bool(get_supabase_bucket()),
         "folder_id_present": bool(get_drive_folder_id()),
         "service_account_table_present": bool(service_table),
         "json_secret_names_present": json_secret_names,
@@ -152,6 +209,48 @@ def config_diagnostics() -> dict[str, Any]:
         "secret_read_error": keys_error,
         "last_error": LAST_STATUS.get("last_error", ""),
     }
+
+
+def _supabase_object_url(path: Path) -> str:
+    object_path = quote(relative_drive_path(path), safe="/")
+    bucket = quote(get_supabase_bucket(), safe="")
+    return f"{get_supabase_url()}/storage/v1/object/{bucket}/{object_path}"
+
+
+def _supabase_headers() -> dict[str, str]:
+    key = get_supabase_key()
+    return {
+        "apikey": key,
+        "Authorization": f"Bearer {key}",
+    }
+
+
+def upload_csv_to_supabase(path: Path) -> bool:
+    if path.suffix.lower() != ".csv" or not path.exists() or not supabase_configured():
+        return False
+    headers = {
+        **_supabase_headers(),
+        "Content-Type": "text/csv",
+        "x-upsert": "true",
+    }
+    response = requests.post(_supabase_object_url(path), headers=headers, data=path.read_bytes(), timeout=30)
+    if response.status_code >= 400:
+        raise RemoteStorageError(f"Supabase upload failed for {relative_drive_path(path)}: {response.status_code} {response.text}")
+    _remember_upload(path, "Supabase")
+    return True
+
+
+def download_csv_from_supabase(path: Path) -> bool:
+    if not supabase_configured():
+        return False
+    response = requests.get(_supabase_object_url(path), headers=_supabase_headers(), timeout=30)
+    if response.status_code == 404:
+        return False
+    if response.status_code >= 400:
+        raise RemoteStorageError(f"Supabase download failed for {relative_drive_path(path)}: {response.status_code} {response.text}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(response.content)
+    return True
 
 
 def _drive_service():
@@ -198,6 +297,8 @@ def upload_csv(path: Path) -> bool:
     try:
         if os.environ.get(DRIVE_SYNC_DISABLED_ENV) == "1" or path.suffix.lower() != ".csv" or not path.exists():
             return False
+        if supabase_configured():
+            return upload_csv_to_supabase(path)
         if not drive_configured():
             return False
         from googleapiclient.http import MediaFileUpload
@@ -213,14 +314,16 @@ def upload_csv(path: Path) -> bool:
             service.files().update(fileId=existing_id, media_body=media, fields="id", supportsAllDrives=True).execute()
         else:
             service.files().create(body={"name": file_name, "parents": [parent_id]}, media_body=media, fields="id", supportsAllDrives=True).execute()
-        _remember_upload(path)
+        _remember_upload(path, "Google Drive")
         return True
     except Exception as exc:
         _remember_error(exc)
-        raise DriveSyncError(f"Google Drive upload failed for {relative_drive_path(path)}: {exc}") from exc
+        raise RemoteStorageError(f"Remote CSV upload failed for {relative_drive_path(path)}: {exc}") from exc
 
 
 def download_csv(path: Path) -> bool:
+    if supabase_configured():
+        return download_csv_from_supabase(path)
     if not drive_configured():
         return False
     from googleapiclient.http import MediaIoBaseDownload
@@ -250,7 +353,7 @@ def download_csv(path: Path) -> bool:
 
 
 def sync_from_drive() -> dict[str, int]:
-    if not drive_configured():
+    if not remote_storage_configured():
         return {"downloaded": 0, "available": 0}
     downloaded = 0
     for path in managed_csv_paths():

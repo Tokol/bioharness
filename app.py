@@ -9,7 +9,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from drive_storage import config_diagnostics as drive_config_diagnostics, drive_configured, last_status as drive_last_status, missing_config_labels as drive_missing_config_labels, rebuild_source_xlsx_from_csv, sync_from_drive
+from drive_storage import config_diagnostics as drive_config_diagnostics, last_status as drive_last_status, missing_config_labels as drive_missing_config_labels, rebuild_source_xlsx_from_csv, remote_storage_configured, sync_from_drive
 from harness_commands import COMMAND_OUTPUTS, approved_command_catalog, export_audit_bundle_zip, export_dataset_zip, export_fortrain_zip, run_approved_command
 from harness_config import EXTRACTED_SOURCE_CSV, EXTRACTED_SOURCE_XLSX, FORMULATION_COMPONENTS, FOR_TRAIN_DIR, FORMULATION_DATASET, MATERIAL_LIBRARY, MATERIAL_NAME_MAPPING, OPENAI_KEY_FILE, PROPERTY_TARGETS, REJECTION_LOG, UPLOAD_DIR
 from harness_core import (
@@ -1313,11 +1313,11 @@ def apply_streamlit_secrets() -> None:
         os.environ[OPENAI_API_KEY_ENV] = str(key).strip()
 
 
-def sync_drive_storage_once() -> None:
+def sync_remote_storage_once() -> None:
     if st.session_state.get("drive_storage_synced"):
         return
     st.session_state["drive_storage_synced"] = True
-    if not drive_configured():
+    if not remote_storage_configured():
         st.session_state["drive_storage_status"] = {"configured": False, "downloaded": 0}
         return
     try:
@@ -1341,7 +1341,7 @@ def apply_model_mode_from_sidebar() -> None:
 def main() -> None:
     st.set_page_config(page_title=APP_TITLE, page_icon=str(MASCOTS["dr_bio"]), layout="wide")
     apply_streamlit_secrets()
-    sync_drive_storage_once()
+    sync_remote_storage_once()
     inject_css()
     render_header()
 
@@ -1353,21 +1353,22 @@ def main() -> None:
         st.metric("Exported papers", len(list_applied_reviews()))
         drive_status = st.session_state.get("drive_storage_status", {})
         current_drive_status = drive_last_status()
+        backend_label = current_drive_status.get("backend") or "Remote CSV"
         if drive_status.get("configured"):
             if drive_status.get("error") or current_drive_status.get("last_error"):
-                st.warning("Google Drive storage needs attention.")
-                with st.expander("Drive sync detail"):
+                st.warning(f"{backend_label} storage needs attention.")
+                with st.expander("Storage sync detail"):
                     st.write(drive_status.get("error") or current_drive_status.get("last_error"))
             else:
-                st.caption(f"Google Drive CSV storage active. Loaded {drive_status.get('downloaded', 0)} files.")
+                st.caption(f"{backend_label} CSV storage active. Loaded {drive_status.get('downloaded', 0)} files.")
                 if current_drive_status.get("last_upload_path"):
-                    st.caption(f"Last Drive upload: {current_drive_status['last_upload_path']}")
+                    st.caption(f"Last remote upload: {current_drive_status['last_upload_path']}")
         else:
-            st.caption("Google Drive CSV storage is not configured.")
+            st.caption("Remote CSV storage is not configured.")
             missing_drive_config = drive_missing_config_labels()
             if missing_drive_config:
                 st.caption(f"Missing: {', '.join(missing_drive_config)}")
-                with st.expander("Drive config diagnostics"):
+                with st.expander("Storage config diagnostics"):
                     st.json(drive_config_diagnostics())
         render_sidebar_model_mode()
         apply_model_mode_from_sidebar()
