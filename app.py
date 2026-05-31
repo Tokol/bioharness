@@ -78,6 +78,17 @@ def inject_css() -> None:
             border-right: 1px solid rgba(255,255,255,0.12);
         }
         [data-testid="stSidebar"] * { color: #eefaf7; }
+        [data-testid="stSidebar"] [data-baseweb="input"] {
+            background: #ffffff;
+        }
+        [data-testid="stSidebar"] [data-baseweb="input"] input {
+            color: var(--lab-ink) !important;
+            caret-color: var(--lab-ink);
+        }
+        [data-testid="stSidebar"] [data-baseweb="input"] input::placeholder {
+            color: var(--lab-muted) !important;
+            opacity: 1;
+        }
         [data-testid="stSidebar"] [data-testid="stExpander"] {
             background: rgba(255,255,255,0.08);
             border: 1px solid rgba(198,244,229,0.24);
